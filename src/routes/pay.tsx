@@ -105,6 +105,9 @@ function perPersonDues(db: DB): { person: Person; amount: number; payers: string
   for (const sp of db.splits) {
     for (const s of sp.shares) {
       if (s.settled) continue;
+      // Skip self-payments where payer is the payee
+      if (sp.payerName && key(sp.payerName) === key(s.payeeName)) continue;
+
       const k = key(s.payeeName);
       const cur = map.get(k);
       if (cur) {

@@ -1207,12 +1207,14 @@ export function minimalSettlements(db: DB): {
     let cred = balances.reduce((m, b) => (b.net > m.net ? b : m), { i: -1, net: -Infinity });
     let debt = balances.reduce((m, b) => (b.net < m.net ? b : m), { i: -1, net: Infinity });
 
-    if (cred.net < EPS || debt.net > -EPS) break;
+    if (cred.net < EPS || debt.net > -EPS || cred.i === debt.i) break;
     const amt = Math.min(cred.net, -debt.net);
     if (amt < EPS) break;
 
     const fromPerson = people[debt.i];
     const toPerson = people[cred.i];
+
+    if (fromPerson.name.trim().toLowerCase() === toPerson.name.trim().toLowerCase()) break;
 
     settlements.push({
       fromName: fromPerson.name,
