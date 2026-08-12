@@ -160,6 +160,17 @@ function PayPage() {
 
   const people = useMemo(() => participants(db), [db]);
   const dues = useMemo(() => perPersonDues(db), [db]);
+  const smartPay = useMemo(() => minimalSettlements(db), [db]);
+  const validSettlements = useMemo(
+    () =>
+      smartPay.settlements.filter(
+        (s) =>
+          s.fromName.trim().toLowerCase() !== s.toName.trim().toLowerCase() &&
+          resolvePersonName(s.fromName, db).toLowerCase() !==
+            resolvePersonName(s.toName, db).toLowerCase(),
+      ),
+    [smartPay, db],
+  );
 
   if (!hydrated) return <div className="shimmer h-96 rounded-2xl" />;
 
@@ -172,18 +183,6 @@ function PayPage() {
   const settledAll = db.splits.reduce(
     (s, sp) => s + sp.shares.filter((x) => x.settled).reduce((a, x) => a + x.share, 0),
     0,
-  );
-
-  const smartPay = useMemo(() => minimalSettlements(db), [db]);
-  const validSettlements = useMemo(
-    () =>
-      smartPay.settlements.filter(
-        (s) =>
-          s.fromName.trim().toLowerCase() !== s.toName.trim().toLowerCase() &&
-          resolvePersonName(s.fromName, db).toLowerCase() !==
-            resolvePersonName(s.toName, db).toLowerCase(),
-      ),
-    [smartPay, db],
   );
 
   function copyAllLinks() {
