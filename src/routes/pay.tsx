@@ -425,12 +425,13 @@ function PayPage() {
                 <button
                   onClick={() => {
                     const account = db.accounts.find((a) => a.id === t.accountId);
+                    const defaultPayer = account?.name ?? db.accounts.find((a) => a.upiVpa)?.name ?? db.accounts[0]?.name ?? "";
                     setPrefill({
                       total: Math.abs(t.amount),
                       note: t.payeeName || t.memo,
                       date: t.date,
                       sourceTxnId: t.id,
-                      payerName: account?.name ?? "",
+                      payerName: defaultPayer,
                       people: (t.splits ?? []).map((s) => {
                         const cat = db.categories.find((c) => c.id === s.categoryId);
                         return {
@@ -722,7 +723,8 @@ function SplitForm({
   const db = useDB();
   const [total, setTotal] = useState(initial?.total ? String(initial.total) : "");
   const [note, setNote] = useState(initial?.note ?? "");
-  const [payerName, setPayerName] = useState(initial?.payerName ?? "");
+  const defaultPayer = initial?.payerName || db.accounts.find((a) => a.upiVpa)?.name || db.accounts[0]?.name || "";
+  const [payerName, setPayerName] = useState(defaultPayer);
   const [date, setDate] = useState(initial?.date ?? todayISO());
   const [people, setPeople] = useState<
     { key: string; name: string; upi?: string; amount: string }[]
