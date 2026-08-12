@@ -174,13 +174,23 @@ function PayPage() {
     0,
   );
 
-  const pendingCount = dues.filter((d) => d.person.upi).length;
+  const smartPay = useMemo(() => minimalSettlements(db), [db]);
+  const validSettlements = useMemo(
+    () =>
+      smartPay.settlements.filter(
+        (s) =>
+          s.fromName.trim().toLowerCase() !== s.toName.trim().toLowerCase() &&
+          resolvePersonName(s.fromName, db).toLowerCase() !==
+            resolvePersonName(s.toName, db).toLowerCase(),
+      ),
+    [smartPay, db],
+  );
 
   function copyAllLinks() {
-    const withUpi = dues.filter((d) => d.person.upi);
-    if (!withUpi.length) return toast.error("No outstanding UPI links to copy");
+    const withUpi = validSettlements.filter((s) => s.toUpi);
+    if (!withUpi.length) return toast.error("No minimal transfer UPI links to copy");
     const links = withUpi
-      .map((d) => upiLink(d.person.upi!, d.person.name, d.amount, "SmartPay"))
+      .map((s) => upiLink(s.toUpi!, s.toName, s.amount, `SmartPay: ${s.fromName} to ${s.toName}`))
       .join("\n");
     navigator.clipboard?.writeText(links);
     toast.success(`${withUpi.length} UPI link${withUpi.length > 1 ? "s" : ""} copied`);
@@ -240,17 +250,8 @@ function PayPage() {
         ))}
       </div>
 
-      {(() => {
-        const smartPay = minimalSettlements(db);
-        const validSettlements = smartPay.settlements.filter(
-          (s) =>
-            s.fromName.trim().toLowerCase() !== s.toName.trim().toLowerCase() &&
-            resolvePersonName(s.fromName, db).toLowerCase() !==
-              resolvePersonName(s.toName, db).toLowerCase(),
-        );
-        if (!validSettlements.length && !smartPay.netBalances.length) return null;
-        return (
-          <div className="space-y-4">
+      {(!validSettlements.length && !smartPay.netBalances.length) ? null : (
+        <div className="space-y-4">
             {smartPay.netBalances.length > 0 && (
               <section>
                 <div className="mb-2 flex items-center justify-between">
@@ -351,8 +352,7 @@ function PayPage() {
               </section>
             )}
           </div>
-        );
-      })()}
+      )}
 
 
 
