@@ -1,0 +1,10 @@
+node_modules
+src
+data
+.wrangler
+.tanstack
+.git
+start.sh
+Dockerfile
+docker-compose.yml
+*.log
