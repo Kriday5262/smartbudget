@@ -189,8 +189,11 @@ function PayPage() {
     const withUpi = validSettlements.filter((s) => s.toUpi);
     if (!withUpi.length) return toast.error("No minimal transfer UPI links to copy");
     const links = withUpi
-      .map((s) => upiLink(s.toUpi!, s.toName, s.amount, `SmartPay: ${s.fromName} to ${s.toName}`))
-      .join("\n");
+      .map((s) => {
+        const link = upiLink(s.toUpi!, s.toName, s.amount, `SmartPay: ${s.fromName} to ${s.toName}`);
+        return `${s.fromName} → ${s.toName} (${money(s.amount)}):\n${link}`;
+      })
+      .join("\n\n");
     navigator.clipboard?.writeText(links);
     toast.success(`${withUpi.length} UPI link${withUpi.length > 1 ? "s" : ""} copied`);
   }
