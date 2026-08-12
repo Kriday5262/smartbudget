@@ -1169,6 +1169,37 @@ export function resetDB() {
   listeners.forEach((l) => l());
 }
 
+/** Resolves category/account/payee names (e.g. "Pocket Money: Shantanu") to the core person name (e.g. "Shantanu") */
+export function resolvePersonName(name: string, db: DB): string {
+  if (!name) return "";
+  const trimName = name.trim();
+  const lower = trimName.toLowerCase();
+
+  const payeeMatch = db.payees.find((p) => p.name.trim().toLowerCase() === lower);
+  if (payeeMatch) return payeeMatch.name;
+
+  const accountMatch = db.accounts.find((a) => a.name.trim().toLowerCase() === lower);
+  if (accountMatch) return accountMatch.name;
+
+  for (const p of db.payees) {
+    const pLower = p.name.trim().toLowerCase();
+    const regex = new RegExp(`\\b${pLower}\\b`, "i");
+    if (regex.test(lower)) {
+      return p.name;
+    }
+  }
+
+  for (const a of db.accounts) {
+    const aLower = a.name.trim().toLowerCase();
+    const regex = new RegExp(`\\b${aLower}\\b`, "i");
+    if (regex.test(lower)) {
+      return a.name;
+    }
+  }
+
+  return trimName;
+}
+
 /** SmartPay minimal settlement algorithm: calculates net balances and simplifies group debts */
 export function minimalSettlements(db: DB): {
   netBalances: { name: string; upi?: string; net: number }[];
@@ -1176,23 +1207,28 @@ export function minimalSettlements(db: DB): {
 } {
   const map = new Map<string, { name: string; upi?: string; net: number }>();
 
-  function getPerson(name: string, upi?: string) {
-    const key = name.trim().toLowerCase();
+  function getPerson(rawName: string, upi?: string) {
+    const canonicalName = resolvePersonName(rawName, db);
+    const key = canonicalName.trim().toLowerCase();
     if (!map.has(key)) {
       const matchPayee = db.payees.find((p) => p.name.trim().toLowerCase() === key);
       const matchAccount = db.accounts.find((a) => a.name.trim().toLowerCase() === key);
       const personUpi = upi || matchPayee?.upiVpa || matchAccount?.upiVpa;
-      map.set(key, { name: name.trim(), upi: personUpi, net: 0 });
+      map.set(key, { name: canonicalName, upi: personUpi, net: 0 });
     }
     return map.get(key)!;
   }
 
   // Calculate net balances for unsettled splits
   for (const s of db.splits) {
-    const payer = getPerson(s.payerName);
+    const payerResolved = resolvePersonName(s.payerName, db);
+    const payer = getPerson(payerResolved);
     for (const sh of s.shares) {
       if (sh.settled) continue;
-      const beneficiary = getPerson(sh.payeeName, sh.upiVpa);
+      const beneficiaryResolved = resolvePersonName(sh.payeeName, db);
+      if (payerResolved.toLowerCase() === beneficiaryResolved.toLowerCase()) continue;
+
+      const beneficiary = getPerson(beneficiaryResolved, sh.upiVpa);
       payer.net += sh.share;
       beneficiary.net -= sh.share;
     }
@@ -1208,13 +1244,18 @@ export function minimalSettlements(db: DB): {
     let debt = balances.reduce((m, b) => (b.net < m.net ? b : m), { i: -1, net: Infinity });
 
     if (cred.net < EPS || debt.net > -EPS || cred.i === debt.i) break;
-    const amt = Math.min(cred.net, -debt.net);
-    if (amt < EPS) break;
 
     const fromPerson = people[debt.i];
     const toPerson = people[cred.i];
 
-    if (fromPerson.name.trim().toLowerCase() === toPerson.name.trim().toLowerCase()) break;
+    if (fromPerson.name.trim().toLowerCase() === toPerson.name.trim().toLowerCase()) {
+      debt.net = 0;
+      cred.net = 0;
+      continue;
+    }
+
+    const amt = Math.min(cred.net, -debt.net);
+    if (amt < EPS) break;
 
     settlements.push({
       fromName: fromPerson.name,

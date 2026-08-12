@@ -25,6 +25,7 @@ import {
   toggleShareSettled,
   dismissSplitTxn,
   minimalSettlements,
+  resolvePersonName,
   uid,
   type DB,
   type Split,
@@ -113,10 +114,13 @@ function perPersonDues(db: DB): { person: Person; amount: number; payers: string
   const map = new Map<string, { person: Person; amount: number; payers: Set<string> }>();
   const key = (n: string) => n.trim().toLowerCase();
   for (const sp of db.splits) {
+    const payerResolved = resolvePersonName(sp.payerName, db);
     for (const s of sp.shares) {
       if (s.settled) continue;
+      const payeeResolved = resolvePersonName(s.payeeName, db);
+
       // Skip self-payments where payer is the payee
-      if (sp.payerName && key(sp.payerName) === key(s.payeeName)) continue;
+      if (payerResolved && key(payerResolved) === key(payeeResolved)) continue;
 
       const k = key(s.payeeName);
       const cur = map.get(k);
@@ -239,7 +243,10 @@ function PayPage() {
       {(() => {
         const smartPay = minimalSettlements(db);
         const validSettlements = smartPay.settlements.filter(
-          (s) => s.fromName.trim().toLowerCase() !== s.toName.trim().toLowerCase(),
+          (s) =>
+            s.fromName.trim().toLowerCase() !== s.toName.trim().toLowerCase() &&
+            resolvePersonName(s.fromName, db).toLowerCase() !==
+              resolvePersonName(s.toName, db).toLowerCase(),
         );
         if (!validSettlements.length && !smartPay.netBalances.length) return null;
         return (
