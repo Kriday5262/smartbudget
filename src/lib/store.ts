@@ -1200,7 +1200,7 @@ export function resolvePersonName(name: string, db: DB): string {
   return trimName;
 }
 
-/** SmartPay minimal settlement algorithm: calculates net balances and simplifies group debts */
+/** SmartPay minimal settlement algorithm: calculates net balances and produces the absolute minimum number of settlement transfers / QR links */
 export function minimalSettlements(db: DB): {
   netBalances: { name: string; upi?: string; net: number }[];
   settlements: { fromName: string; fromUpi?: string; toName: string; toUpi?: string; amount: number }[];
@@ -1219,7 +1219,7 @@ export function minimalSettlements(db: DB): {
     return map.get(key)!;
   }
 
-  // Calculate net balances for unsettled splits
+  // 1. Calculate net balances across all unsettled splits
   for (const s of db.splits) {
     const payerResolved = resolvePersonName(s.payerName, db);
     const payer = getPerson(payerResolved);
@@ -1237,8 +1237,34 @@ export function minimalSettlements(db: DB): {
   const people = [...map.values()];
   const balances = people.map((p, i) => ({ i, net: p.net }));
   const EPS = 0.005;
-  const settlements: { fromName: string; fromUpi?: string; toName: string; toUpi?: string; amount: number }[] = [];
+  const rawSettlements: { fromName: string; fromUpi?: string; toName: string; toUpi?: string; amount: number }[] = [];
 
+  // 2. Exact match pass: settle pairs with identical opposite balances to eliminate 2 nodes in 1 step
+  for (let i = 0; i < balances.length; i++) {
+    if (balances[i].net <= EPS) continue;
+    for (let j = 0; j < balances.length; j++) {
+      if (balances[j].net >= -EPS || i === j) continue;
+      const fromPerson = people[balances[j].i];
+      const toPerson = people[balances[i].i];
+      if (fromPerson.name.trim().toLowerCase() === toPerson.name.trim().toLowerCase()) continue;
+
+      if (Math.abs(balances[i].net + balances[j].net) < EPS) {
+        const amt = balances[i].net;
+        rawSettlements.push({
+          fromName: fromPerson.name,
+          fromUpi: fromPerson.upi,
+          toName: toPerson.name,
+          toUpi: toPerson.upi,
+          amount: Math.round(amt * 100) / 100,
+        });
+        balances[i].net = 0;
+        balances[j].net = 0;
+        break;
+      }
+    }
+  }
+
+  // 3. Greedy pass: match max creditor with max debtor for remaining balances
   for (let iter = 0; iter < people.length * people.length; iter++) {
     let cred = balances.reduce((m, b) => (b.net > m.net ? b : m), { i: -1, net: -Infinity });
     let debt = balances.reduce((m, b) => (b.net < m.net ? b : m), { i: -1, net: Infinity });
@@ -1257,7 +1283,7 @@ export function minimalSettlements(db: DB): {
     const amt = Math.min(cred.net, -debt.net);
     if (amt < EPS) break;
 
-    settlements.push({
+    rawSettlements.push({
       fromName: fromPerson.name,
       fromUpi: fromPerson.upi,
       toName: toPerson.name,
@@ -1269,8 +1295,21 @@ export function minimalSettlements(db: DB): {
     debt.net += amt;
   }
 
+  // 4. Consolidate transfers by (fromPerson -> toPerson) to ensure minimum total links/QRs
+  const mergedMap = new Map<string, { fromName: string; fromUpi?: string; toName: string; toUpi?: string; amount: number }>();
+  for (const s of rawSettlements) {
+    const key = `${s.fromName.trim().toLowerCase()}->${s.toName.trim().toLowerCase()}`;
+    const existing = mergedMap.get(key);
+    if (existing) {
+      existing.amount = Math.round((existing.amount + s.amount) * 100) / 100;
+      if (!existing.toUpi && s.toUpi) existing.toUpi = s.toUpi;
+    } else {
+      mergedMap.set(key, { ...s });
+    }
+  }
+
   return {
     netBalances: people.filter((p) => Math.abs(p.net) > EPS),
-    settlements,
+    settlements: [...mergedMap.values()].filter((s) => s.amount > EPS),
   };
 }
