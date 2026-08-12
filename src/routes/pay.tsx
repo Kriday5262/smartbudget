@@ -2,24 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import QRCode from "qrcode";
-import {
-  Plus,
-  Trash2,
-  QrCode,
-  Copy,
-  Check,
-  Users,
-  X,
-  Link2,
-  ArrowRight,
-  Sparkles,
-  Zap,
-  CheckCircle2,
-  Clock,
-  ChevronRight,
-  CreditCard,
-  Percent,
-} from "lucide-react";
+import { Plus, Trash2, QrCode, Copy, Check, Users, X, Link2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -87,19 +70,19 @@ function upiLink(vpa: string, name: string, amount: number, note?: string) {
 type Person = { name: string; upi?: string };
 
 const AV_COLORS = [
-  "bg-primary/15 text-primary border-primary/20",
-  "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
-  "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20",
-  "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/20",
-  "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/20",
-  "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/20",
+  "bg-primary/20 text-primary",
+  "bg-secondary/50 text-secondary-foreground",
+  "bg-success/20 text-success",
+  "bg-warning/20 text-warning",
+  "bg-destructive/20 text-destructive",
+  "bg-accent/50 text-accent-foreground",
 ];
 
 function Avatar({ name, index, className }: { name: string; index: number; className?: string }) {
   return (
     <span
       className={cn(
-        "flex shrink-0 items-center justify-center rounded-full border font-bold shadow-xs transition-transform hover:scale-105",
+        "flex shrink-0 items-center justify-center rounded-full font-bold",
         AV_COLORS[index % AV_COLORS.length],
         className,
       )}
@@ -178,7 +161,7 @@ function PayPage() {
   const people = useMemo(() => participants(db), [db]);
   const dues = useMemo(() => perPersonDues(db), [db]);
 
-  if (!hydrated) return <div className="shimmer h-96 rounded-3xl" />;
+  if (!hydrated) return <div className="shimmer h-96 rounded-2xl" />;
 
   const outstanding = db.splits.reduce(
     (s, sp) => s + sp.shares.filter((x) => !x.settled).reduce((a, x) => a + x.share, 0),
@@ -217,57 +200,46 @@ function PayPage() {
     .sort((a, b) => b.date.localeCompare(a.date));
 
   return (
-    <div className="space-y-6">
-      {/* Top Banner Header */}
-      <header className="relative overflow-hidden rounded-3xl border border-border/80 bg-gradient-to-br from-card via-card to-primary/5 p-5 shadow-xs sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] font-bold text-primary">
-              <Zap className="h-3 w-3" /> SmartPay Engine
-            </div>
-            <h1 className="text-2xl font-black tracking-tight sm:text-3xl">SmartPay</h1>
-            <p className="text-xs text-muted-foreground sm:text-sm">
-              <span className="num font-bold text-foreground">{money(outstanding)}</span> remaining to settle
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={copyAllLinks}
-              className="tap flex items-center gap-1.5 rounded-2xl border border-border/80 bg-card/80 px-3.5 py-2.5 text-xs font-bold text-foreground shadow-xs hover:border-primary/40 hover:bg-card"
-            >
-              <Link2 className="h-4 w-4 text-primary" /> Copy all links
-            </button>
-            <button
-              onClick={() => {
-                setPrefill(undefined);
-                setCreating(true);
-              }}
-              className="tap flex items-center gap-1.5 rounded-2xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground shadow-md transition-transform hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <Plus className="h-4 w-4" /> New Split
-            </button>
-          </div>
+    <div className="space-y-5">
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">SmartPay</h1>
+          <p className="text-sm text-muted-foreground">{money(outstanding)} still to be settled</p>
         </div>
-
-        {/* Dynamic Metric Cards */}
-        <div className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
-          <div className="rounded-2xl border border-border/60 bg-background/60 p-3 backdrop-blur-xs">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total Splits</p>
-            <p className="num mt-1 text-sm font-bold sm:text-base">{money(totalAll)}</p>
-          </div>
-          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-3 backdrop-blur-xs">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Settled</p>
-            <p className="num mt-1 text-sm font-bold text-emerald-600 dark:text-emerald-400 sm:text-base">{money(settledAll)}</p>
-          </div>
-          <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-3 backdrop-blur-xs">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">Outstanding</p>
-            <p className="num mt-1 text-sm font-bold text-rose-600 dark:text-rose-400 sm:text-base">{money(outstanding)}</p>
-          </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={copyAllLinks}
+            className="tap flex items-center gap-1.5 rounded-full border border-border px-3.5 py-2 text-xs font-bold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <Link2 className="h-4 w-4" /> Copy all links
+          </button>
+          <button
+            onClick={() => {
+              setPrefill(undefined);
+              setCreating(true);
+            }}
+            className="tap flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-bold text-primary-foreground transition-opacity hover:opacity-90 active:scale-[0.98]"
+          >
+            <Plus className="h-4 w-4" /> Split
+          </button>
         </div>
       </header>
 
-      {/* SmartPay Algorithm & Minimal Transfers */}
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { k: "Total splits", v: totalAll },
+          { k: "Settled", v: settledAll },
+          { k: "Outstanding", v: outstanding },
+        ].map((s) => (
+          <div key={s.k} className="surface px-3.5 py-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+              {s.k}
+            </p>
+            <p className="num mt-1 text-[15px] font-bold">{money(s.v)}</p>
+          </div>
+        ))}
+      </div>
+
       {(() => {
         const smartPay = minimalSettlements(db);
         const validSettlements = smartPay.settlements.filter(
@@ -279,49 +251,32 @@ function PayPage() {
         if (!validSettlements.length && !smartPay.netBalances.length) return null;
         return (
           <div className="space-y-4">
-            {/* Net Balances Section */}
             {smartPay.netBalances.length > 0 && (
-              <section className="space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+              <section>
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
                     Net Balances · SmartPay Calculation
                   </p>
-                  <span className="flex items-center gap-1 text-[10px] font-bold text-primary">
-                    <Sparkles className="h-3 w-3" /> Auto-balanced
+                  <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold text-primary">
+                    SmartPay Engine
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {smartPay.netBalances.map((b, i) => {
                     const isPositive = b.net > 0;
                     return (
-                      <div
-                        key={i}
-                        className={cn(
-                          "relative overflow-hidden rounded-2xl border p-3 shadow-xs transition-all hover:shadow-sm",
-                          isPositive
-                            ? "border-emerald-500/30 bg-emerald-500/5"
-                            : "border-rose-500/30 bg-rose-500/5",
-                        )}
-                      >
-                        <div className="flex items-center justify-between">
-                          <p className="truncate text-xs font-bold text-foreground">{b.name}</p>
-                          <span
-                            className={cn(
-                              "h-1.5 w-1.5 rounded-full",
-                              isPositive ? "bg-emerald-500 animate-pulse" : "bg-rose-500",
-                            )}
-                          />
-                        </div>
+                      <div key={i} className="surface px-3 py-2.5">
+                        <p className="truncate text-xs font-bold">{b.name}</p>
                         <p
                           className={cn(
-                            "num mt-1 text-sm font-black",
-                            isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400",
+                            "num mt-0.5 text-xs font-bold",
+                            isPositive ? "text-emerald-500" : "text-rose-500",
                           )}
                         >
                           {isPositive ? "+" : ""}
                           {money(b.net)}
                         </p>
-                        <p className="mt-0.5 text-[10px] font-medium text-muted-foreground">
+                        <p className="text-[10px] text-muted-foreground">
                           {isPositive ? "gets back" : "owes"}
                         </p>
                       </div>
@@ -331,11 +286,10 @@ function PayPage() {
               </section>
             )}
 
-            {/* Direct Minimal Transfers Section */}
             {validSettlements.length > 0 && (
-              <section className="space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+              <section>
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
                     Who Pays Whom · Minimal Transfers
                   </p>
                   <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
@@ -350,15 +304,15 @@ function PayPage() {
                     return (
                       <div
                         key={i}
-                        className="group flex items-center justify-between gap-3 rounded-2xl border border-border/80 bg-card p-3.5 shadow-xs transition-all hover:border-primary/40 hover:shadow-sm"
+                        className="surface flex items-center justify-between gap-3 px-3.5 py-3"
                       >
                         <div className="flex min-w-0 flex-1 items-center gap-2 text-xs">
                           <span className="font-bold text-foreground">{s.fromName}</span>
-                          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                          <span className="text-muted-foreground">→</span>
                           <span className="font-bold text-foreground">{s.toName}</span>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <span className="num text-sm font-black text-primary">
+                          <span className="num text-sm font-bold text-primary">
                             {money(s.amount)}
                           </span>
                           {link && (
@@ -369,9 +323,9 @@ function PayPage() {
                                   navigator.clipboard?.writeText(link);
                                   toast.success("UPI pay link copied");
                                 }}
-                                className="tap rounded-xl border border-border/60 bg-muted/40 p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                className="tap rounded-lg border border-border bg-card p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                               >
-                                <Copy className="h-3.5 w-3.5" />
+                                <Copy className="h-4 w-4" />
                               </button>
                               <button
                                 aria-label={`Show QR code from ${s.fromName} to ${s.toName}`}
@@ -383,7 +337,7 @@ function PayPage() {
                                     amount: s.amount,
                                   })
                                 }
-                                className="tap flex items-center gap-1 rounded-xl bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground shadow-xs transition-transform hover:scale-[1.02]"
+                                className="tap flex items-center gap-1.5 rounded-xl bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary transition-colors hover:bg-primary/20"
                               >
                                 <QrCode className="h-3.5 w-3.5" /> Pay
                               </button>
@@ -400,18 +354,17 @@ function PayPage() {
         );
       })()}
 
-      {/* Outstanding dues section */}
       {dues.length > 0 && (
-        <section className="space-y-2.5">
-          <div className="flex items-center justify-between">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-              Outstanding · Pay Each Person
+        <section>
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+              Outstanding · pay each person
             </p>
             <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold text-primary">
               {pendingCount} with UPI
             </span>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="space-y-2">
             {dues.map((d, i) => {
               const pidx = people.findIndex(
                 (p) => p.name.trim().toLowerCase() === d.person.name.trim().toLowerCase(),
@@ -420,16 +373,16 @@ function PayPage() {
                 ? upiLink(d.person.upi, d.person.name, d.amount, "SmartPay")
                 : "";
               return (
-                <div key={i} className="flex items-center gap-3 rounded-2xl border border-border/80 bg-card p-3 shadow-xs">
+                <div key={i} className="surface flex items-center gap-2.5 px-3 py-2.5">
                   <Avatar
                     name={d.person.name}
                     index={pidx >= 0 ? pidx : i}
-                    className="h-10 w-10 text-xs"
+                    className="h-9 w-9 text-sm"
                   />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs font-bold">{d.person.name}</p>
                     <p className="truncate font-mono text-[10px] text-muted-foreground">
-                      {d.person.upi ?? "no UPI id"}
+                      {d.person.upi ?? "no UPI"}
                     </p>
                   </div>
                   <span className="num shrink-0 text-xs font-bold">{money(d.amount)}</span>
@@ -441,9 +394,9 @@ function PayPage() {
                           navigator.clipboard?.writeText(link);
                           toast.success("UPI link copied");
                         }}
-                        className="tap rounded-xl border border-border/60 bg-muted/40 p-2 text-muted-foreground hover:bg-muted"
+                        className="tap rounded-lg border border-border bg-card p-1.5 text-muted-foreground hover:bg-muted"
                       >
-                        <Copy className="h-3.5 w-3.5" />
+                        <Copy className="h-4 w-4" />
                       </button>
                       <button
                         aria-label={`Show QR for ${d.person.name}`}
@@ -455,9 +408,9 @@ function PayPage() {
                             amount: d.amount,
                           })
                         }
-                        className="tap rounded-xl bg-primary/10 p-2 text-primary hover:bg-primary/20"
+                        className="tap flex items-center gap-1.5 rounded-xl bg-primary/10 px-2.5 py-1.5 text-xs font-bold text-primary hover:bg-primary/20"
                       >
-                        <QrCode className="h-3.5 w-3.5" />
+                        <QrCode className="h-3.5 w-3.5" /> Pay
                       </button>
                     </div>
                   )}
@@ -468,11 +421,10 @@ function PayPage() {
         </section>
       )}
 
-      {/* Recommended Splits */}
       {splitTxns.length > 0 && (
         <div className="space-y-3">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-            Recommended Splits
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+            Recommended splits
           </p>
           <ul className="space-y-3">
             {splitTxns.map((t) => (
@@ -499,11 +451,11 @@ function PayPage() {
                     });
                     setCreating(true);
                   }}
-                  className="w-full rounded-2xl border border-primary/30 bg-primary/5 p-4 pr-12 text-left shadow-xs transition-all hover:border-primary/50 hover:bg-primary/10"
+                  className="surface w-full px-4 py-3 pr-12 text-left hover:bg-muted/40"
                 >
                   <div className="flex items-center gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold text-foreground">
+                      <p className="truncate text-sm font-bold">
                         {t.payeeName || t.memo || "Split transaction"}
                       </p>
                       <p className="truncate text-[11px] text-muted-foreground">
@@ -511,31 +463,31 @@ function PayPage() {
                         {prettyDate(t.date)}
                       </p>
                     </div>
-                    <span className="num shrink-0 text-sm font-black text-primary">
+                    <span className="num shrink-0 text-sm font-bold">
                       {money(Math.abs(t.amount))}
                     </span>
                   </div>
-                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  <div className="mt-2 flex flex-wrap gap-1.5">
                     {t.splits?.map((s) => {
                       const cat = db.categories.find((c) => c.id === s.categoryId);
                       return (
                         <span
                           key={s.categoryId}
-                          className="rounded-full border border-primary/20 bg-background/80 px-2.5 py-0.5 text-[11px] font-semibold text-foreground"
+                          className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground"
                         >
                           {cat?.name ?? "?"} · {money(Math.abs(s.amount))}
                         </span>
                       );
                     })}
                   </div>
-                  <p className="mt-2.5 flex items-center gap-1 text-[11px] font-bold text-primary">
-                    Generate UPI split <ChevronRight className="h-3.5 w-3.5" />
+                  <p className="mt-2 text-[11px] font-bold text-primary">
+                    Do you want to generate a UPI split? →
                   </p>
                 </button>
                 <button
                   onClick={() => dismissSplitTxn(t.id)}
                   aria-label={`Hide ${t.payeeName || t.memo || "split transaction"}`}
-                  className="tap absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full border border-border/60 bg-background/80 text-muted-foreground hover:bg-muted"
+                  className="tap absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-muted/60 text-muted-foreground hover:bg-muted"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -545,29 +497,24 @@ function PayPage() {
         </div>
       )}
 
-      {/* Empty State */}
       {db.splits.length === 0 && (
-        <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-border/80 p-10 text-center">
-          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-            <Users className="h-6 w-6" />
+        <div className="surface flex flex-col items-center gap-3 px-4 py-10 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-primary">
+            <Users className="h-5 w-5" />
           </span>
-          <div className="max-w-xs space-y-1">
-            <p className="text-sm font-bold">No active splits</p>
-            <p className="text-xs text-muted-foreground">
-              Split a dinner, trip or monthly groceries. Everyone gets dedicated UPI links &amp; QR codes.
-            </p>
-          </div>
+          <p className="max-w-xs text-sm text-muted-foreground">
+            Split a dinner, a trip or the monthly groceries. Everyone gets their own UPI pay link
+            and QR code.
+          </p>
         </div>
       )}
 
-      {/* Splits List */}
       <ul className="space-y-3">
         {db.splits.map((sp) => (
           <SplitCard key={sp.id} split={sp} />
         ))}
       </ul>
 
-      {/* New Split Dialog */}
       <Dialog open={creating} onOpenChange={setCreating}>
         <DialogContent
           className={cn(
@@ -577,13 +524,12 @@ function PayPage() {
           )}
         >
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold">New Split</DialogTitle>
+            <DialogTitle>New split</DialogTitle>
           </DialogHeader>
           <SplitForm onDone={() => setCreating(false)} initial={prefill} />
         </DialogContent>
       </Dialog>
 
-      {/* QR Code Dialog */}
       <QrDialog qr={qr} onClose={() => setQr(undefined)} />
     </div>
   );
@@ -596,34 +542,27 @@ function SplitCard({ split }: { split: Split }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
-    <li className="overflow-hidden rounded-3xl border border-border/80 bg-card shadow-xs">
+    <li className="surface overflow-hidden">
       <div
-        className="px-4 py-3.5"
+        className="px-4 py-3"
         style={{
-          backgroundImage: `linear-gradient(90deg, color-mix(in oklab, var(--primary) 15%, transparent) ${pct * 100}%, transparent ${pct * 100}%)`,
+          backgroundImage: `linear-gradient(90deg, color-mix(in oklab, var(--primary) 12%, transparent) ${pct * 100}%, transparent ${pct * 100}%)`,
         }}
       >
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <p className="truncate text-sm font-bold text-foreground">{split.note || "Split"}</p>
-              {pct === 1 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                  <CheckCircle2 className="h-3 w-3" /> Fully Settled
-                </span>
-              )}
-            </div>
+            <p className="truncate text-sm font-bold">{split.note || "Split"}</p>
             <p className="truncate text-[11px] text-muted-foreground">
               {split.payerName} paid · {prettyDate(split.date)}
             </p>
           </div>
-          <span className="num shrink-0 text-sm font-black">{money(split.total)}</span>
+          <span className="num shrink-0 text-sm font-bold">{money(split.total)}</span>
           <button
             aria-label="Delete split"
             onClick={() => setConfirmDelete(true)}
-            className="tap rounded-xl p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+            className="tap rounded-lg p-1.5 text-muted-foreground hover:text-destructive"
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
@@ -657,7 +596,7 @@ function SplitCard({ split }: { split: Split }) {
         </AlertDialogContent>
       </AlertDialog>
 
-      <ul className="divide-y divide-border border-t border-border/60">
+      <ul className="divide-y divide-border border-t border-border">
         {split.shares.map((s, i) => (
           <ShareRow key={s.id} splitId={split.id} share={s} index={i} />
         ))}
@@ -676,16 +615,16 @@ function ShareRow({
   index: number;
 }) {
   return (
-    <li className="flex items-center gap-3 px-4 py-3">
-      <Avatar name={share.payeeName} index={index} className="h-7 w-7 text-xs" />
+    <li className="flex items-center gap-2 px-4 py-2.5">
+      <Avatar name={share.payeeName} index={index} className="h-6 w-6 text-[10px]" />
       <button
         onClick={() => toggleShareSettled(splitId, share.id)}
         aria-label={share.settled ? "Mark unsettled" : "Mark settled"}
         className={cn(
-          "tap flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all",
+          "tap flex h-6 w-6 shrink-0 items-center justify-center rounded-full border",
           share.settled
-            ? "border-primary bg-primary text-primary-foreground shadow-xs"
-            : "border-border/80 text-transparent hover:border-primary/60",
+            ? "border-primary bg-primary text-primary-foreground"
+            : "border-border text-transparent",
         )}
       >
         <Check className="h-3.5 w-3.5" strokeWidth={3} />
@@ -693,12 +632,12 @@ function ShareRow({
       <span
         className={cn(
           "min-w-0 flex-1 truncate text-xs font-semibold",
-          share.settled && "text-muted-foreground line-through opacity-70",
+          share.settled && "text-muted-foreground line-through",
         )}
       >
         {share.payeeName}
         {share.upiVpa && (
-          <span className="ml-1.5 font-mono text-[10px] font-normal text-muted-foreground">{share.upiVpa}</span>
+          <span className="ml-1.5 font-normal text-muted-foreground">{share.upiVpa}</span>
         )}
       </span>
       <span className="num shrink-0 text-xs font-bold">{money(share.share)}</span>
@@ -734,41 +673,40 @@ function QrDialog({
         <DialogTitle className="sr-only">
           {qr ? `Payment request ${qr.from} → ${qr.to}` : "Payment request"}
         </DialogTitle>
-        <div className="flex flex-col items-center gap-4 text-center">
-          <div className="space-y-1">
-            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-0.5 text-[11px] font-bold text-primary">
-              <Zap className="h-3 w-3" /> SmartPay QR
-            </span>
-            <p className="text-base font-bold">UPI Payment Request</p>
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div>
+            <p className="text-sm font-bold">SmartPay</p>
+            <p className="text-[11px] text-muted-foreground">Payment Request</p>
           </div>
 
-          <p className="flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-4 py-1.5 text-xs font-bold">
+          <p className="flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-semibold">
             <span>{qr?.from}</span>
-            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-primary">{qr?.to}</span>
+            <span className="text-muted-foreground">pays</span>
+            <span className="text-muted-foreground">→</span>
+            <span>{qr?.to}</span>
           </p>
 
-          <p className="num text-3xl font-black text-foreground">{qr ? money(qr.amount) : "—"}</p>
+          <p className="num text-2xl font-bold">{qr ? money(qr.amount) : "—"}</p>
 
           <div className="relative">
             {src ? (
               <img
                 src={src}
                 alt="UPI payment QR code"
-                className="h-60 w-60 rounded-3xl border border-border bg-white p-3 shadow-md"
+                className="h-56 w-56 rounded-2xl border border-border bg-white p-2"
               />
             ) : (
-              <div className="shimmer h-60 w-60 rounded-3xl" />
+              <div className="shimmer h-56 w-56 rounded-2xl" />
             )}
             <img
               src="/favicon.svg"
               alt="SmartPay logo"
-              className="absolute left-1/2 top-1/2 h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-white shadow-md"
+              className="absolute left-1/2 top-1/2 h-11 w-11 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-white shadow"
             />
           </div>
 
-          <p className="text-xs text-muted-foreground">
-            Scan with GPay · PhonePe · Paytm · BHIM · any UPI app
+          <p className="text-[11px] text-muted-foreground">
+            Scan with GPay · PhonePe · Paytm · any UPI app
           </p>
         </div>
       </DialogContent>
@@ -869,20 +807,19 @@ function SplitForm({
   }
 
   return (
-    <div className="space-y-4 pt-1">
+    <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label className="text-xs font-semibold text-muted-foreground">Total (₹)</Label>
+          <Label className="text-xs font-medium text-muted-foreground">Total (₹)</Label>
           <Input
-            className="num h-11 rounded-xl text-base font-bold"
+            className="num"
             inputMode="decimal"
-            placeholder="0.00"
             value={total}
             onChange={(e) => setTotal(e.target.value)}
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs font-semibold text-muted-foreground">Paid by</Label>
+          <Label className="text-xs font-medium text-muted-foreground">Paid by</Label>
           <PersonPicker
             value={payerKey}
             placeholder="Who paid?"
@@ -894,30 +831,22 @@ function SplitForm({
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label className="text-xs font-semibold text-muted-foreground">Note / Purpose</Label>
-          <Input
-            className="h-11 rounded-xl text-sm"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Dinner, Trip, Groceries"
-          />
+          <Label className="text-xs font-medium text-muted-foreground">What for</Label>
+          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Dinner" />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs font-semibold text-muted-foreground">Date</Label>
-          <Input className="h-11 rounded-xl text-sm" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <Label className="text-xs font-medium text-muted-foreground">Date</Label>
+          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
       </div>
 
-      <div className="space-y-3 rounded-2xl border border-border/80 bg-muted/20 p-3.5">
+      <div className="space-y-2 rounded-2xl border border-border p-3">
         <div className="flex items-center justify-between">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-            People &amp; Shares
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+            People
           </p>
-          <button
-            onClick={splitEqually}
-            className="tap flex items-center gap-1 text-xs font-bold text-primary hover:underline"
-          >
-            <Percent className="h-3 w-3" /> Split equally
+          <button onClick={splitEqually} className="tap text-xs font-bold text-primary">
+            Split equally
           </button>
         </div>
 
@@ -949,7 +878,7 @@ function SplitForm({
                   />
                 </div>
                 <Input
-                  className="num h-10 w-24 rounded-xl text-sm font-bold"
+                  className="num w-24"
                   inputMode="decimal"
                   placeholder="0"
                   value={p.amount}
@@ -959,17 +888,17 @@ function SplitForm({
                   aria-label="Remove person"
                   onClick={() => setPeople((ps) => ps.filter((_, k) => k !== i))}
                   disabled={people.length <= 2}
-                  className="tap rounded-xl p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-30"
+                  className="tap rounded-lg p-2 text-muted-foreground disabled:opacity-30"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <p className="pl-1 font-mono text-[10px] text-muted-foreground">{p.upi ?? "No UPI id saved"}</p>
+              <p className="pl-1 text-[11px] text-muted-foreground">{p.upi ?? "No UPI id saved"}</p>
             </div>
           );
         })}
 
-        <div className="flex items-center justify-between border-t border-border/60 pt-2">
+        <div className="flex items-center justify-between pt-1">
           <button
             onClick={() =>
               setPeople((ps) => [...ps, { key: "", name: "", upi: undefined, amount: "" }])
@@ -980,19 +909,19 @@ function SplitForm({
           </button>
           <span
             className={cn(
-              "num text-xs font-bold",
-              Math.abs(value - sum) < 0.5 ? "text-emerald-500" : "text-amber-500",
+              "num text-[11px] font-bold",
+              Math.abs(value - sum) < 0.5 ? "text-primary" : "text-muted-foreground",
             )}
           >
-            {Math.abs(value - sum) < 0.5 ? "✓ Balanced" : `${money(value - sum)} unallocated`}
+            {Math.abs(value - sum) < 0.5 ? "Balanced" : `${money(value - sum)} left`}
           </span>
         </div>
       </div>
 
-      {error && <p className="text-xs font-medium text-destructive">{error}</p>}
+      {error && <p className="text-xs text-destructive">{error}</p>}
 
-      <Button className="h-12 w-full rounded-2xl text-sm font-bold shadow-md" onClick={save}>
-        Create Split
+      <Button className="h-11 w-full rounded-xl font-bold" onClick={save}>
+        Create split
       </Button>
     </div>
   );
