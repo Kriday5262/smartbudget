@@ -238,7 +238,10 @@ function PayPage() {
 
       {(() => {
         const smartPay = minimalSettlements(db);
-        if (!smartPay.settlements.length && !smartPay.netBalances.length) return null;
+        const validSettlements = smartPay.settlements.filter(
+          (s) => s.fromName.trim().toLowerCase() !== s.toName.trim().toLowerCase(),
+        );
+        if (!validSettlements.length && !smartPay.netBalances.length) return null;
         return (
           <div className="space-y-4">
             {smartPay.netBalances.length > 0 && (
@@ -276,18 +279,18 @@ function PayPage() {
               </section>
             )}
 
-            {smartPay.settlements.length > 0 && (
+            {validSettlements.length > 0 && (
               <section>
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
                     Who Pays Whom · Minimal Transfers
                   </p>
                   <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                    {smartPay.settlements.length} direct transfer{smartPay.settlements.length > 1 ? "s" : ""}
+                    {validSettlements.length} direct transfer{validSettlements.length > 1 ? "s" : ""}
                   </span>
                 </div>
                 <div className="space-y-2">
-                  {smartPay.settlements.map((s, i) => {
+                  {validSettlements.map((s, i) => {
                     const link = s.toUpi
                       ? upiLink(s.toUpi, s.toName, s.amount, `SmartPay: ${s.fromName} to ${s.toName}`)
                       : "";
