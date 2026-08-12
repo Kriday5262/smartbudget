@@ -1168,3 +1168,66 @@ export function resetDB() {
   persist();
   listeners.forEach((l) => l());
 }
+
+/** SmartPay minimal settlement algorithm: calculates net balances and simplifies group debts */
+export function minimalSettlements(db: DB): {
+  netBalances: { name: string; upi?: string; net: number }[];
+  settlements: { fromName: string; fromUpi?: string; toName: string; toUpi?: string; amount: number }[];
+} {
+  const map = new Map<string, { name: string; upi?: string; net: number }>();
+
+  function getPerson(name: string, upi?: string) {
+    const key = name.trim().toLowerCase();
+    if (!map.has(key)) {
+      const matchPayee = db.payees.find((p) => p.name.trim().toLowerCase() === key);
+      const matchAccount = db.accounts.find((a) => a.name.trim().toLowerCase() === key);
+      const personUpi = upi || matchPayee?.upiVpa || matchAccount?.upiVpa;
+      map.set(key, { name: name.trim(), upi: personUpi, net: 0 });
+    }
+    return map.get(key)!;
+  }
+
+  // Calculate net balances for unsettled splits
+  for (const s of db.splits) {
+    const payer = getPerson(s.payerName);
+    for (const sh of s.shares) {
+      if (sh.settled) continue;
+      const beneficiary = getPerson(sh.payeeName, sh.upiVpa);
+      payer.net += sh.share;
+      beneficiary.net -= sh.share;
+    }
+  }
+
+  const people = [...map.values()];
+  const balances = people.map((p, i) => ({ i, net: p.net }));
+  const EPS = 0.005;
+  const settlements: { fromName: string; fromUpi?: string; toName: string; toUpi?: string; amount: number }[] = [];
+
+  for (let iter = 0; iter < people.length * people.length; iter++) {
+    let cred = balances.reduce((m, b) => (b.net > m.net ? b : m), { i: -1, net: -Infinity });
+    let debt = balances.reduce((m, b) => (b.net < m.net ? b : m), { i: -1, net: Infinity });
+
+    if (cred.net < EPS || debt.net > -EPS) break;
+    const amt = Math.min(cred.net, -debt.net);
+    if (amt < EPS) break;
+
+    const fromPerson = people[debt.i];
+    const toPerson = people[cred.i];
+
+    settlements.push({
+      fromName: fromPerson.name,
+      fromUpi: fromPerson.upi,
+      toName: toPerson.name,
+      toUpi: toPerson.upi,
+      amount: Math.round(amt * 100) / 100,
+    });
+
+    cred.net -= amt;
+    debt.net += amt;
+  }
+
+  return {
+    netBalances: people.filter((p) => Math.abs(p.net) > EPS),
+    settlements,
+  };
+}
