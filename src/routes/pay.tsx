@@ -354,72 +354,7 @@ function PayPage() {
         );
       })()}
 
-      {dues.length > 0 && (
-        <section>
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-              Outstanding · pay each person
-            </p>
-            <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold text-primary">
-              {pendingCount} with UPI
-            </span>
-          </div>
-          <div className="space-y-2">
-            {dues.map((d, i) => {
-              const pidx = people.findIndex(
-                (p) => p.name.trim().toLowerCase() === d.person.name.trim().toLowerCase(),
-              );
-              const link = d.person.upi
-                ? upiLink(d.person.upi, d.person.name, d.amount, "SmartPay")
-                : "";
-              return (
-                <div key={i} className="surface flex items-center gap-2.5 px-3 py-2.5">
-                  <Avatar
-                    name={d.person.name}
-                    index={pidx >= 0 ? pidx : i}
-                    className="h-9 w-9 text-sm"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-bold">{d.person.name}</p>
-                    <p className="truncate font-mono text-[10px] text-muted-foreground">
-                      {d.person.upi ?? "no UPI"}
-                    </p>
-                  </div>
-                  <span className="num shrink-0 text-xs font-bold">{money(d.amount)}</span>
-                  {link && (
-                    <div className="flex items-center gap-1">
-                      <button
-                        aria-label={`Copy pay link for ${d.person.name}`}
-                        onClick={() => {
-                          navigator.clipboard?.writeText(link);
-                          toast.success("UPI link copied");
-                        }}
-                        className="tap rounded-lg border border-border bg-card p-1.5 text-muted-foreground hover:bg-muted"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </button>
-                      <button
-                        aria-label={`Show QR for ${d.person.name}`}
-                        onClick={() =>
-                          setQr({
-                            link,
-                            from: d.payers.length ? d.payers.join(" & ") : "Someone",
-                            to: d.person.name,
-                            amount: d.amount,
-                          })
-                        }
-                        className="tap flex items-center gap-1.5 rounded-xl bg-primary/10 px-2.5 py-1.5 text-xs font-bold text-primary hover:bg-primary/20"
-                      >
-                        <QrCode className="h-3.5 w-3.5" /> Pay
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
+
 
       {splitTxns.length > 0 && (
         <div className="space-y-3">
