@@ -7,6 +7,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { PersonPicker, personOptions, UpiPicker } from "@/components/pickers";
 import {
   useDB,
@@ -518,6 +528,8 @@ function SplitCard({ split }: { split: Split }) {
   const settled = split.shares.filter((s) => s.settled).reduce((a, s) => a + s.share, 0);
   const pct = split.total > 0 ? Math.min(1, settled / split.total) : 0;
 
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
   return (
     <li className="surface overflow-hidden">
       <div
@@ -536,16 +548,42 @@ function SplitCard({ split }: { split: Split }) {
           <span className="num shrink-0 text-sm font-bold">{money(split.total)}</span>
           <button
             aria-label="Delete split"
-            onClick={() => {
-              deleteSplit(split.id);
-              toast.success("Split deleted");
-            }}
+            onClick={() => setConfirmDelete(true)}
             className="tap rounded-lg p-1.5 text-muted-foreground hover:text-destructive"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent
+          className={cn(
+            "max-h-[88vh] overflow-y-auto rounded-3xl sm:max-w-lg",
+            "max-sm:top-auto max-sm:bottom-0 max-sm:w-full max-sm:max-w-full max-sm:translate-y-0",
+            "max-sm:rounded-b-none max-sm:rounded-t-[32px] max-sm:pb-[calc(1.5rem+env(safe-area-inset-bottom))]",
+          )}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete split?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this split for {money(split.total)}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                deleteSplit(split.id);
+                toast.success("Split deleted");
+              }}
+              className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <ul className="divide-y divide-border border-t border-border">
         {split.shares.map((s, i) => (
