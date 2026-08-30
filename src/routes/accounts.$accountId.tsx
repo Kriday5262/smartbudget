@@ -1,11 +1,19 @@
+import { useMemo } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CardBrandMark } from "@/components/CardBrandMark";
 import { BankMark } from "@/components/BankMark";
 import { UpiActions } from "@/components/UpiActions";
+import { PendingBadge } from "@/components/PendingBadge";
 
-import { useDB, accountBalance, transactionLabel } from "@/lib/store";
+import {
+  useDB,
+  accountBalance,
+  categoryTransferInfo,
+  transactionLabel,
+  type Transaction,
+} from "@/lib/store";
 import { money, prettyDate } from "@/lib/format";
 import { CategoryInline, CategoryList } from "@/lib/category-icons";
 import { useHydrated } from "@/hooks/use-hydrated";
@@ -35,14 +43,31 @@ function AccountDetail() {
   const db = useDB();
   const hydrated = useHydrated();
 
+  const account = db.accounts.find((a) => a.id === accountId);
+
+  const groups = useMemo(() => {
+    const list = db.transactions
+      .filter((t) => t.accountId === accountId)
+      .sort((a, b) => b.date.localeCompare(a.date));
+
+    const byDate = new Map<string, Transaction[]>();
+    list.forEach((t) => {
+      const arr = byDate.get(t.date) ?? [];
+      arr.push(t);
+      byDate.set(t.date, arr);
+    });
+    return [...byDate.entries()];
+  }, [db, accountId]);
+
+  const total = groups.reduce((s, [, items]) => s + items.length, 0);
+
   if (!hydrated) return <div className="shimmer h-96 rounded-2xl" />;
 
-  const account = db.accounts.find((a) => a.id === accountId);
   if (!account) {
     return (
       <div className="surface p-8 text-center">
         <p className="text-sm text-muted-foreground">That account no longer exists.</p>
-        <Link to="/accounts" className="mt-3 inline-block text-sm font-medium text-primary">
+        <Link to="/accounts/" className="mt-3 inline-block text-sm font-medium text-primary">
           Back to accounts
         </Link>
       </div>
@@ -50,14 +75,11 @@ function AccountDetail() {
   }
 
   const bal = accountBalance(db, account.id);
-  const txns = db.transactions
-    .filter((t) => t.accountId === account.id)
-    .sort((a, b) => b.date.localeCompare(a.date));
 
   return (
     <div className="space-y-6">
       <Link
-        to="/accounts"
+        to="/accounts/"
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> Accounts
@@ -100,61 +122,100 @@ function AccountDetail() {
         </Button>
       </div>
 
-      <section className="surface overflow-hidden">
-        <ul className="divide-y divide-border">
-          {txns.length === 0 && (
-            <li className="p-8 text-center text-sm text-muted-foreground">
-              No transactions yet on this account.
-            </li>
-          )}
-          {txns.map((t, i) => {
-            const splitCats = t.splits?.length
-              ? t.splits.map((s) => db.categories.find((c) => c.id === s.categoryId))
-              : [];
-            const singleCat = db.categories.find((c) => c.id === t.categoryId);
-            const label = transactionLabel(db, t);
-            return (
-              <li
-                key={t.id}
-                className="animate-fade-up flex items-center gap-3 px-4 py-3"
-                style={{ animationDelay: `${Math.min(i, 8) * 60}ms` }}
-              >
-                <button
-                  type="button"
-                  onClick={() => uiActions.editTxn(t.id)}
-                  className="tap min-w-0 flex-1 text-left"
-                >
-                  <p className="truncate text-sm font-medium">{label}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {t.transferId ? (
-                      "Between accounts"
-                    ) : splitCats.length ? (
-                      <CategoryList cats={splitCats} />
-                    ) : singleCat ? (
-                      <CategoryInline cat={singleCat} />
-                    ) : (
-                      "Ready to Assign"
-                    )}{" "}
-                    · {prettyDate(t.date)}
-                  </p>
-                  {t.memo && t.memo !== label && (
-                    <p className="truncate text-[11px] italic text-muted-foreground/75">{t.memo}</p>
-                  )}
-                </button>
+      {total === 0 && (
+        <section className="surface px-4 py-8 text-center text-sm text-muted-foreground">
+          No transactions yet on this account.
+        </section>
+      )}
 
-                <span
-                  className={cn(
-                    "num text-sm font-semibold",
-                    t.amount > 0 ? "text-primary" : "text-foreground",
-                  )}
-                >
-                  {money(t.amount)}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
+      {groups.map(([date, items]) => {
+        const dayNet = items.reduce(
+          (s, t) => s + (t.transferId || t.categoryTransferId ? 0 : t.amount),
+          0,
+        );
+        return (
+          <section key={date}>
+            <div className="sticky top-0 z-10 -mx-4 flex items-center justify-between bg-background/90 px-4 py-2 backdrop-blur-sm md:mx-0 md:px-1">
+              <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                {prettyDate(date)}
+              </span>
+              <span
+                className={cn(
+                  "num text-[11px] font-bold",
+                  dayNet < 0 ? "text-muted-foreground" : "text-primary",
+                )}
+              >
+                {money(dayNet)}
+              </span>
+            </div>
+
+            <ul className="space-y-1.5">
+              {items.map((t) => {
+                const splitCats = t.splits?.length
+                  ? t.splits.map((s) => db.categories.find((c) => c.id === s.categoryId))
+                  : [];
+                const singleCat = db.categories.find((c) => c.id === t.categoryId);
+                const info = categoryTransferInfo(db, t);
+                const label = transactionLabel(db, t);
+                return (
+                  <li key={t.id} className="animate-fade-up surface px-3.5 py-2.5">
+                    <button
+                      type="button"
+                      onClick={() => uiActions.editTxn(t.id)}
+                      className="tap flex w-full items-center gap-3 text-left"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="flex items-center gap-1.5 truncate text-sm font-bold">
+                          <span className="truncate">{label}</span>
+                          {t.pending && <PendingBadge />}
+                        </p>
+                        <p className="truncate text-[11px] text-muted-foreground">
+                          {info ? (
+                            singleCat ? (
+                              <CategoryInline cat={singleCat} />
+                            ) : (
+                              "Category"
+                            )
+                          ) : (
+                            <>
+                              {t.transferId ? (
+                                "Between accounts"
+                              ) : splitCats.length ? (
+                                <CategoryList cats={splitCats} />
+                              ) : singleCat ? (
+                                <CategoryInline cat={singleCat} />
+                              ) : (
+                                "Ready to Assign"
+                              )}
+                            </>
+                          )}
+                        </p>
+                        {t.memo && t.memo !== label && (
+                          <p className="truncate text-[11px] italic text-muted-foreground/75">
+                            {t.memo}
+                          </p>
+                        )}
+                      </div>
+                      <span
+                        className={cn(
+                          "num shrink-0 text-sm font-bold",
+                          t.transferId || info
+                            ? "text-muted-foreground"
+                            : t.amount > 0
+                              ? "text-primary"
+                              : "text-foreground",
+                        )}
+                      >
+                        {money(t.amount)}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        );
+      })}
     </div>
   );
 }
