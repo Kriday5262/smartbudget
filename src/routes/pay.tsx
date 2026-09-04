@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { PersonPicker, personOptions, UpiPicker } from "@/components/pickers";
+import { PendingBadge } from "@/components/PendingBadge";
 import {
   useDB,
   addSplit,
@@ -26,13 +27,18 @@ import {
   dismissSplitTxn,
   minimalSettlements,
   resolvePersonName,
+  setTransactionPending,
+  transactionLabel,
   uid,
   type DB,
   type Split,
   type SplitShare,
+  type Transaction,
 } from "@/lib/store";
 import { money, prettyDate, todayISO } from "@/lib/format";
+import { CategoryInline, CategoryList } from "@/lib/category-icons";
 import { useHydrated } from "@/hooks/use-hydrated";
+import { uiActions } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/pay")({
@@ -190,7 +196,12 @@ function PayPage() {
     if (!withUpi.length) return toast.error("No minimal transfer UPI links to copy");
     const links = withUpi
       .map((s) => {
-        const link = upiLink(s.toUpi!, s.toName, s.amount, `SmartPay: ${s.fromName} to ${s.toName}`);
+        const link = upiLink(
+          s.toUpi!,
+          s.toName,
+          s.amount,
+          `SmartPay: ${s.fromName} to ${s.toName}`,
+        );
         return `${s.fromName} → ${s.toName} (${money(s.amount)}):\n${link}`;
       })
       .join("\n\n");
@@ -209,6 +220,10 @@ function PayPage() {
     .filter((t) => t.splits?.length)
     .filter((t) => !db.splits.some((s) => s.sourceTxnId === t.id))
     .filter((t) => !dismissed.has(t.id))
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  const pendingTxns = db.transactions
+    .filter((t) => t.pending)
     .sort((a, b) => b.date.localeCompare(a.date));
 
   return (
@@ -252,111 +267,127 @@ function PayPage() {
         ))}
       </div>
 
-      {(!validSettlements.length && !smartPay.netBalances.length) ? null : (
-        <div className="space-y-4">
-            {smartPay.netBalances.length > 0 && (
-              <section>
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-                    Net Balances · SmartPay Calculation
-                  </p>
-                  <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold text-primary">
-                    SmartPay Engine
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {smartPay.netBalances.map((b, i) => {
-                    const isPositive = b.net > 0;
-                    return (
-                      <div key={i} className="surface px-3 py-2.5">
-                        <p className="truncate text-xs font-bold">{b.name}</p>
-                        <p
-                          className={cn(
-                            "num mt-0.5 text-xs font-bold",
-                            isPositive ? "text-emerald-500" : "text-rose-500",
-                          )}
-                        >
-                          {isPositive ? "+" : ""}
-                          {money(b.net)}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {isPositive ? "gets back" : "owes"}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
-
-            {validSettlements.length > 0 && (
-              <section>
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-                    Who Pays Whom · Minimal Transfers
-                  </p>
-                  <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                    {validSettlements.length} direct transfer{validSettlements.length > 1 ? "s" : ""}
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  {validSettlements.map((s, i) => {
-                    const link = s.toUpi
-                      ? upiLink(s.toUpi, s.toName, s.amount, `SmartPay: ${s.fromName} to ${s.toName}`)
-                      : "";
-                    return (
-                      <div
-                        key={i}
-                        className="surface flex items-center justify-between gap-3 px-3.5 py-3"
-                      >
-                        <div className="flex min-w-0 flex-1 items-center gap-2 text-xs">
-                          <span className="font-bold text-foreground">{s.fromName}</span>
-                          <span className="text-muted-foreground">→</span>
-                          <span className="font-bold text-foreground">{s.toName}</span>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="num text-sm font-bold text-primary">
-                            {money(s.amount)}
-                          </span>
-                          {link && (
-                            <div className="flex items-center gap-1">
-                              <button
-                                aria-label={`Copy UPI link from ${s.fromName} to ${s.toName}`}
-                                onClick={() => {
-                                  navigator.clipboard?.writeText(link);
-                                  toast.success("UPI pay link copied");
-                                }}
-                                className="tap rounded-lg border border-border bg-card p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                              >
-                                <Copy className="h-4 w-4" />
-                              </button>
-                              <button
-                                aria-label={`Show QR code from ${s.fromName} to ${s.toName}`}
-                                onClick={() =>
-                                  setQr({
-                                    link,
-                                    from: s.fromName,
-                                    to: s.toName,
-                                    amount: s.amount,
-                                  })
-                                }
-                                className="tap flex items-center gap-1.5 rounded-xl bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary transition-colors hover:bg-primary/20"
-                              >
-                                <QrCode className="h-3.5 w-3.5" /> Pay
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
+      {pendingTxns.length > 0 && (
+        <section>
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+              Pending transactions
+            </p>
+            <span className="num rounded-full bg-warning/15 px-2.5 py-0.5 text-[10px] font-bold text-warning">
+              {pendingTxns.length} to clear
+            </span>
           </div>
+          <ul className="space-y-2">
+            {pendingTxns.map((t) => (
+              <PendingTxnRow key={t.id} txn={t} />
+            ))}
+          </ul>
+        </section>
       )}
 
+      {!validSettlements.length && !smartPay.netBalances.length ? null : (
+        <div className="space-y-4">
+          {smartPay.netBalances.length > 0 && (
+            <section>
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                  Net Balances · SmartPay Calculation
+                </p>
+                <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold text-primary">
+                  SmartPay Engine
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {smartPay.netBalances.map((b, i) => {
+                  const isPositive = b.net > 0;
+                  return (
+                    <div key={i} className="surface px-3 py-2.5">
+                      <p className="truncate text-xs font-bold">{b.name}</p>
+                      <p
+                        className={cn(
+                          "num mt-0.5 text-xs font-bold",
+                          isPositive ? "text-emerald-500" : "text-rose-500",
+                        )}
+                      >
+                        {isPositive ? "+" : ""}
+                        {money(b.net)}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {isPositive ? "gets back" : "owes"}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
+          {validSettlements.length > 0 && (
+            <section>
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                  Who Pays Whom · Minimal Transfers
+                </p>
+                <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                  {validSettlements.length} direct transfer{validSettlements.length > 1 ? "s" : ""}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {validSettlements.map((s, i) => {
+                  const link = s.toUpi
+                    ? upiLink(s.toUpi, s.toName, s.amount, `SmartPay: ${s.fromName} to ${s.toName}`)
+                    : "";
+                  return (
+                    <div
+                      key={i}
+                      className="surface flex items-center justify-between gap-3 px-3.5 py-3"
+                    >
+                      <div className="flex min-w-0 flex-1 items-center gap-2 text-xs">
+                        <span className="font-bold text-foreground">{s.fromName}</span>
+                        <span className="text-muted-foreground">→</span>
+                        <span className="font-bold text-foreground">{s.toName}</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="num text-sm font-bold text-primary">
+                          {money(s.amount)}
+                        </span>
+                        {link && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              aria-label={`Copy UPI link from ${s.fromName} to ${s.toName}`}
+                              onClick={() => {
+                                navigator.clipboard?.writeText(link);
+                                toast.success("UPI pay link copied");
+                              }}
+                              className="tap rounded-lg border border-border bg-card p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                            >
+                              <Copy className="h-4 w-4" />
+                            </button>
+                            <button
+                              aria-label={`Show QR code from ${s.fromName} to ${s.toName}`}
+                              onClick={() =>
+                                setQr({
+                                  link,
+                                  from: s.fromName,
+                                  to: s.toName,
+                                  amount: s.amount,
+                                })
+                              }
+                              className="tap flex items-center gap-1.5 rounded-xl bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary transition-colors hover:bg-primary/20"
+                            >
+                              <QrCode className="h-3.5 w-3.5" /> Pay
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+        </div>
+      )}
 
       {splitTxns.length > 0 && (
         <div className="space-y-3">
@@ -369,7 +400,11 @@ function PayPage() {
                 <button
                   onClick={() => {
                     const account = db.accounts.find((a) => a.id === t.accountId);
-                    const defaultPayer = account?.name ?? db.accounts.find((a) => a.upiVpa)?.name ?? db.accounts[0]?.name ?? "";
+                    const defaultPayer =
+                      account?.name ??
+                      db.accounts.find((a) => a.upiVpa)?.name ??
+                      db.accounts[0]?.name ??
+                      "";
                     setPrefill({
                       total: Math.abs(t.amount),
                       note: t.payeeName || t.memo,
@@ -472,6 +507,65 @@ function PayPage() {
   );
 }
 
+/** A transaction flagged as pending; clears it from SmartPay when settled. */
+function PendingTxnRow({ txn }: { txn: Transaction }) {
+  const db = useDB();
+  const account = db.accounts.find((a) => a.id === txn.accountId)?.name ?? "—";
+  const splitCats = txn.splits?.length
+    ? txn.splits.map((s) => db.categories.find((c) => c.id === s.categoryId))
+    : [];
+  const singleCat = db.categories.find((c) => c.id === txn.categoryId);
+  const label = transactionLabel(db, txn);
+
+  return (
+    <li className="surface flex items-center gap-3 px-3.5 py-3">
+      <button
+        type="button"
+        onClick={() => uiActions.editTxn(txn.id)}
+        className="tap min-w-0 flex-1 text-left"
+      >
+        <p className="flex items-center gap-1.5 truncate text-sm font-bold">
+          <span className="truncate">{label}</span>
+          <PendingBadge />
+        </p>
+        <p className="truncate text-[11px] text-muted-foreground">
+          {account} ·{" "}
+          {splitCats.length ? (
+            <CategoryList cats={splitCats} />
+          ) : singleCat ? (
+            <CategoryInline cat={singleCat} />
+          ) : (
+            "Ready to Assign"
+          )}{" "}
+          · {prettyDate(txn.date)}
+        </p>
+        {txn.memo && txn.memo !== label && (
+          <p className="truncate text-[11px] italic text-muted-foreground/75">{txn.memo}</p>
+        )}
+      </button>
+      <span
+        className={cn(
+          "num shrink-0 text-sm font-bold",
+          txn.amount > 0 ? "text-primary" : "text-foreground",
+        )}
+      >
+        {money(txn.amount)}
+      </span>
+      <button
+        type="button"
+        onClick={() => {
+          setTransactionPending(txn.id, false);
+          toast.success("Transaction cleared");
+        }}
+        aria-label={`Clear ${label} as settled`}
+        className="tap flex shrink-0 items-center gap-1.5 rounded-xl bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary transition-colors hover:bg-primary/20"
+      >
+        <Check className="h-3.5 w-3.5" /> Clear
+      </button>
+    </li>
+  );
+}
+
 function SplitCard({ split }: { split: Split }) {
   const settled = split.shares.filter((s) => s.settled).reduce((a, s) => a + s.share, 0);
   const pct = split.total > 0 ? Math.min(1, settled / split.total) : 0;
@@ -515,7 +609,8 @@ function SplitCard({ split }: { split: Split }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete split?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this split for {money(split.total)}? This action cannot be undone.
+              Are you sure you want to delete this split for {money(split.total)}? This action
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -668,7 +763,8 @@ function SplitForm({
   const db = useDB();
   const [total, setTotal] = useState(initial?.total ? String(initial.total) : "");
   const [note, setNote] = useState(initial?.note ?? "");
-  const defaultPayer = initial?.payerName || db.accounts.find((a) => a.upiVpa)?.name || db.accounts[0]?.name || "";
+  const defaultPayer =
+    initial?.payerName || db.accounts.find((a) => a.upiVpa)?.name || db.accounts[0]?.name || "";
   const [payerName, setPayerName] = useState(defaultPayer);
   const [date, setDate] = useState(initial?.date ?? todayISO());
   const [people, setPeople] = useState<
@@ -723,7 +819,7 @@ function SplitForm({
   function save() {
     const filled = people.filter((p) => p.key && Number(p.amount) > 0);
     if (!value) return setError("Enter the bill total");
-    if (filled.length < 2) return setError("Pick at least two payees with amounts");
+    if (filled.length < 1) return setError("Pick at least one payee with an amount");
     if (Math.abs(sum - value) > 0.5) return setError(`Shares add up to ${money(sum)}`);
     addSplit({
       total: value,
@@ -824,7 +920,7 @@ function SplitForm({
                 <button
                   aria-label="Remove person"
                   onClick={() => setPeople((ps) => ps.filter((_, k) => k !== i))}
-                  disabled={people.length <= 2}
+                  disabled={people.length <= 1}
                   className="tap rounded-lg p-2 text-muted-foreground disabled:opacity-30"
                 >
                   <X className="h-4 w-4" />

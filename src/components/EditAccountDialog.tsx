@@ -62,7 +62,8 @@ export function EditAccountDialog() {
 
 function Form({ id }: { id: string }) {
   const db = useDB();
-  const a = db.accounts.find((x) => x.id === id)!;
+  const a = db.accounts.find((x) => x.id === id);
+  if (!a) return null;
   const [name, setName] = useState(a.name);
   const [type, setType] = useState<AccountType>(a.type);
   const [bank, setBank] = useState<BankName>(a.bank ?? "Other");

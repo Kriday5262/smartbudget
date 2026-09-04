@@ -115,7 +115,10 @@ function LoansPage() {
         </div>
       )}
 
-      <Dialog open={creating || !!editing} onOpenChange={(o) => !o && (setCreating(false), setEditing(undefined))}>
+      <Dialog
+        open={creating || !!editing}
+        onOpenChange={(o) => !o && (setCreating(false), setEditing(undefined))}
+      >
         <DialogContent
           className={cn(
             "max-h-[88vh] overflow-y-auto rounded-3xl sm:max-w-lg",
@@ -179,19 +182,11 @@ function LoanForm({ loan, onClose }: { loan?: Loan; onClose: () => void }) {
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs font-medium text-muted-foreground">Name</Label>
-          <Input
-            value={name}
-            placeholder="Home loan"
-            onChange={(e) => setName(e.target.value)}
-          />
+          <Input value={name} placeholder="Home loan" onChange={(e) => setName(e.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs font-medium text-muted-foreground">Lender</Label>
-          <Input
-            value={lender}
-            placeholder="HDFC"
-            onChange={(e) => setLender(e.target.value)}
-          />
+          <Input value={lender} placeholder="HDFC" onChange={(e) => setLender(e.target.value)} />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">

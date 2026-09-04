@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { PendingBadge } from "@/components/PendingBadge";
 import { useDB, type Transaction, categoryTransferInfo, transactionLabel } from "@/lib/store";
 import { money, prettyDate } from "@/lib/format";
 import { CategoryInline, CategoryList } from "@/lib/category-icons";
@@ -54,6 +55,7 @@ function HistoryPage() {
         account,
         catNames(t),
         t.transferId ? "transfer" : "",
+        t.pending ? "pending" : "",
         String(Math.abs(t.amount)),
         money(t.amount),
       ]
@@ -150,7 +152,10 @@ function HistoryPage() {
                       className="tap flex w-full items-center gap-3 text-left"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-bold">{label}</p>
+                        <p className="flex items-center gap-1.5 truncate text-sm font-bold">
+                          <span className="truncate">{label}</span>
+                          {t.pending && <PendingBadge />}
+                        </p>
                         <p className="truncate text-[11px] text-muted-foreground">
                           {info ? (
                             singleCat ? (

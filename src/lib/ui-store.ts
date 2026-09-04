@@ -7,6 +7,7 @@ type UIState = {
   addTab: AddTab;
   addAccountId?: string;
   addCategoryId?: string;
+  addDate?: string;
   fabOpen: boolean;
   editAccountId?: string;
   editTxnId?: string;
@@ -21,15 +22,17 @@ function set(patch: Partial<UIState>) {
 }
 
 export const uiActions = {
-  openAdd: (tab: AddTab = "transaction", accountId?: string, categoryId?: string) =>
+  openAdd: (tab: AddTab = "transaction", accountId?: string, categoryId?: string, date?: string) =>
     set({
       addOpen: true,
       addTab: tab,
       addAccountId: accountId,
       addCategoryId: categoryId,
+      addDate: date,
       fabOpen: false,
     }),
-  closeAdd: () => set({ addOpen: false, addAccountId: undefined, addCategoryId: undefined }),
+  closeAdd: () =>
+    set({ addOpen: false, addAccountId: undefined, addCategoryId: undefined, addDate: undefined }),
   toggleFab: () => set({ fabOpen: !state.fabOpen }),
   openFab: () => set({ fabOpen: true }),
   closeFab: () => set({ fabOpen: false }),

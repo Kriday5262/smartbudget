@@ -13,7 +13,6 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppShell } from "@/components/AppShell";
 
-
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -53,9 +52,9 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
           Something went wrong on our end. You can try refreshing or head back home.
         </p>
         <pre className="mt-4 max-h-40 overflow-auto rounded-lg border bg-muted p-3 text-left text-xs text-destructive">
-{error.message}
-{"\n"}
-{error.stack}
+          {error.message}
+          {"\n"}
+          {error.stack}
         </pre>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
@@ -85,7 +84,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       {
         name: "viewport",
-        content: "width=device-width, initial-scale=1, viewport-fit=cover",
+        content:
+          "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
       },
 
       { title: "SmartBudget — Family budgeting with AI & UPI" },
@@ -120,7 +120,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
       { rel: "manifest", href: "/site.webmanifest" },
     ],
-
   }),
   shellComponent: RootShell,
   component: RootComponent,
@@ -154,4 +153,3 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
-

@@ -15,6 +15,7 @@ import {
   X,
   Undo2,
   Redo2,
+  Scale,
 } from "lucide-react";
 import { useUI, uiActions, type AddTab } from "@/lib/ui-store";
 import { useUndo, undo, redo } from "@/lib/store";
@@ -24,10 +25,11 @@ import { cn } from "@/lib/utils";
 export const NAV_ITEMS = [
   { to: "/", label: "Home", icon: Home },
   { to: "/budget", label: "Budget", icon: PiggyBank },
-  { to: "/accounts", label: "Accounts", icon: Wallet },
+  { to: "/accounts/", label: "Accounts", icon: Wallet },
   { to: "/history", label: "History", icon: History },
   { to: "/pay", label: "Pay", icon: Split },
   { to: "/reports", label: "Reports", icon: BarChart3 },
+  { to: "/reconciliation", label: "Reconciliation", icon: Scale },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
@@ -38,12 +40,12 @@ const LEFT_TABS = [
 ] as const;
 
 const RIGHT_TABS = [
-  { to: "/accounts", label: "Accounts", icon: Wallet },
+  { to: "/accounts/", label: "Accounts", icon: Wallet },
   { to: "/history", label: "History", icon: History },
 ] as const;
 
 const MORE_ITEMS = NAV_ITEMS.filter(
-  (i) => !["/", "/budget", "/accounts", "/history"].includes(i.to),
+  (i) => !["/", "/budget", "/accounts", "/accounts/", "/history"].includes(i.to),
 );
 
 const NEW_ITEMS: { tab: AddTab; label: string; icon: typeof Home }[] = [
@@ -67,7 +69,8 @@ function Tab({
   return (
     <Link
       to={to}
-      className="tap flex w-16 flex-col items-center gap-1 py-1"
+      preload="intent"
+      className="tap flex flex-1 flex-col items-center justify-center gap-1 py-2 px-1 min-h-[48px]"
       aria-current={active ? "page" : undefined}
     >
       <Icon

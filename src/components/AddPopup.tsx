@@ -1,17 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import {
-  Check,
-  Plus,
-  X,
-} from "lucide-react";
+import { Check, Plus, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Field, AccountPicker, CategoryPicker, SearchSelect } from "@/components/pickers";
 import { useUI, uiActions, type AddTab } from "@/lib/ui-store";
-import { useDB, addTransaction, addTransfer, addAccount, addGoal, BANKS, CARD_BRANDS, type BankName, type CardBrand, type AccountType } from "@/lib/store";
+import {
+  useDB,
+  addTransaction,
+  addTransfer,
+  addAccount,
+  addGoal,
+  BANKS,
+  CARD_BRANDS,
+  type BankName,
+  type CardBrand,
+  type AccountType,
+} from "@/lib/store";
 import { money, todayISO } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +31,7 @@ const TITLES: Record<AddTab, string> = {
 };
 
 export function AddPopup() {
-  const { addOpen, addTab, addAccountId, addCategoryId } = useUI();
+  const { addOpen, addTab, addAccountId, addCategoryId, addDate } = useUI();
   const [done, setDone] = useState(false);
 
   const flash = (msg: string) => {
@@ -59,6 +67,7 @@ export function AddPopup() {
           <TransactionForm
             defaultAccountId={addAccountId}
             defaultCategoryId={addCategoryId}
+            defaultDate={addDate}
             onSaved={flash}
           />
         ) : addTab === "account" ? (
@@ -80,10 +89,12 @@ type Kind = "expense" | "income" | "transfer";
 function TransactionForm({
   defaultAccountId,
   defaultCategoryId,
+  defaultDate,
   onSaved,
 }: {
   defaultAccountId?: string;
   defaultCategoryId?: string;
+  defaultDate?: string;
   onSaved: (m: string) => void;
 }) {
   const db = useDB();
@@ -98,8 +109,9 @@ function TransactionForm({
     { categoryId: "", amount: "" },
     { categoryId: "", amount: "" },
   ]);
-  const [date, setDate] = useState(todayISO());
+  const [date, setDate] = useState(defaultDate ?? todayISO());
   const [memo, setMemo] = useState("");
+  const [pending, setPending] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const fromAccount = db.accounts.find((a) => a.id === accountId);
@@ -148,7 +160,8 @@ function TransactionForm({
     addTransaction({
       accountId,
       payeeName: payeeName.trim() || undefined,
-      categoryId: kind === "expense" && !splitOn ? categoryId || undefined : undefined,
+      categoryId:
+        (kind === "expense" && !splitOn) || kind === "income" ? categoryId || undefined : undefined,
       splits:
         kind === "expense" && splitOn
           ? rows
@@ -158,6 +171,7 @@ function TransactionForm({
       amount: signed,
       date,
       memo: memo || undefined,
+      pending: pending || undefined,
     });
     onSaved(`Transaction added: ${money(signed)}`);
   }
@@ -240,6 +254,17 @@ function TransactionForm({
         </Field>
       )}
 
+      {kind === "income" && (
+        <Field label="Category">
+          <CategoryPicker
+            value={categoryId}
+            onChange={setCategoryId}
+            placeholder="Ready to Assign"
+            allowReadyToAssign
+          />
+        </Field>
+      )}
+
       {kind === "expense" && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -285,7 +310,9 @@ function TransactionForm({
                 <div key={i} className="flex items-center gap-2">
                   <CategoryPicker
                     value={r.categoryId}
-                    onChange={(id) => setRows(rows.map((x, k) => (k === i ? { ...x, categoryId: id } : x)))}
+                    onChange={(id) =>
+                      setRows(rows.map((x, k) => (k === i ? { ...x, categoryId: id } : x)))
+                    }
                     placeholder="Category"
                     excludeId={rows.slice(0, i).map((x) => x.categoryId)}
                   />
@@ -346,6 +373,18 @@ function TransactionForm({
       <Field label="Memo">
         <Input value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="Optional" />
       </Field>
+
+      {kind !== "transfer" && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-border px-3.5 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-bold">Pending</p>
+            <p className="text-[11px] text-muted-foreground">
+              Track it in SmartPay until it clears
+            </p>
+          </div>
+          <Switch checked={pending} onCheckedChange={setPending} aria-label="Flag as pending" />
+        </div>
+      )}
 
       <Button className="h-11 w-full rounded-xl font-bold" onClick={submit}>
         {kind === "transfer" ? "Record transfer" : "Add transaction"}
@@ -488,7 +527,7 @@ function CardForm({ onSaved }: { onSaved: (m: string) => void }) {
           placeholder="ICICI Amazon Pay"
         />
       </Field>
-            <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <Field label="Bank">
           <SearchSelect
             value={bank}
@@ -596,4 +635,3 @@ function GoalForm({ onSaved }: { onSaved: (m: string) => void }) {
     </div>
   );
 }
-

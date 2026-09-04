@@ -8,6 +8,7 @@ import { CategoryGlyph, categoryIconKey } from "@/lib/category-icons";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { uiActions } from "@/lib/ui-store";
 import { UpiActions } from "@/components/UpiActions";
+import { PendingBadge } from "@/components/PendingBadge";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/categories/$categoryId")({
@@ -127,6 +128,11 @@ function CategoryDetail() {
                     {isSplit && (
                       <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">
                         Split
+                      </span>
+                    )}
+                    {t.pending && (
+                      <span className="ml-1.5">
+                        <PendingBadge />
                       </span>
                     )}
                   </p>

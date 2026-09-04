@@ -1,6 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
-import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import {
   useDB,
   accountBalance,
@@ -13,8 +12,10 @@ import {
   sortedAccounts,
 } from "@/lib/store";
 import { money, monthKey, greeting, prettyDate } from "@/lib/format";
+import { getActiveUser } from "@/lib/lock";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { CategoryInline, CategoryList } from "@/lib/category-icons";
+import { PendingBadge } from "@/components/PendingBadge";
 import { uiActions } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 
@@ -77,10 +78,12 @@ function Dashboard() {
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
             SmartBudget
           </p>
-          <h1 className="truncate text-lg font-semibold">{greeting()}, family</h1>
+          <h1 className="truncate text-lg font-semibold">
+            {greeting()}, {getActiveUser()?.name ?? "family"}
+          </h1>
         </div>
-        <span className="num flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-base font-bold text-accent-foreground">
-          S
+        <span className="num flex h-10 w-10 shrink-0 items-center justify-center rounded-full gradient-primary text-base font-bold text-primary-foreground shadow-md select-none">
+          {getActiveUser()?.name?.[0] ?? "S"}
         </span>
       </header>
 
@@ -96,11 +99,12 @@ function Dashboard() {
         </p>
         <Link
           to="/budget"
+          preload="intent"
           className={cn(
-            "tap mt-5 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold",
+            "mt-5 inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-xs font-semibold cursor-pointer select-none transition-opacity active:opacity-70",
             healthy
-              ? "border-primary/15 bg-primary/8 text-primary"
-              : "border-destructive/20 bg-destructive/8 text-destructive",
+              ? "border-primary/15 bg-primary/8 text-primary hover:bg-primary/12"
+              : "border-destructive/20 bg-destructive/8 text-destructive hover:bg-destructive/12",
           )}
         >
           <span
@@ -142,7 +146,7 @@ function Dashboard() {
           <h2 className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
             Accounts
           </h2>
-          <Link to="/accounts" className="text-xs font-bold text-primary">
+          <Link to="/accounts/" className="text-xs font-bold text-primary">
             View all
           </Link>
         </div>
@@ -200,7 +204,10 @@ function Dashboard() {
                   style={{ animationDelay: `${i * 45}ms` }}
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold">{label}</p>
+                    <p className="flex items-center gap-1.5 truncate text-sm font-bold">
+                      <span className="truncate">{label}</span>
+                      {t.pending && <PendingBadge />}
+                    </p>
                     <p className="truncate text-xs text-muted-foreground">
                       {t.transferId ? (
                         "Between accounts"
@@ -251,33 +258,57 @@ function Dashboard() {
         <h2 className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
           Income vs expense · 6 months
         </h2>
-        <div className="mt-4 h-40 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} barGap={3}>
-              <XAxis
-                dataKey="month"
-                tickLine={false}
-                axisLine={false}
-                stroke="var(--muted-foreground)"
-                fontSize={11}
-              />
-              <Tooltip
-                cursor={{ fill: "var(--muted)" }}
-                contentStyle={{
-                  background: "var(--popover)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 14,
-                  color: "var(--popover-foreground)",
-                  fontSize: 12,
-                }}
-                formatter={(v: number) => money(v)}
-              />
-              <Bar dataKey="income" fill="var(--chart-1)" radius={[5, 5, 0, 0]} />
-              <Bar dataKey="expense" fill="var(--chart-2)" radius={[5, 5, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        <NativeTrendChart data={chartData} />
       </section>
+    </div>
+  );
+}
+
+function NativeTrendChart({
+  data,
+}: {
+  data: { month: string; income: number; expense: number }[];
+}) {
+  const maxVal = Math.max(...data.flatMap((d) => [d.income, d.expense]), 1);
+
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="flex h-36 items-end justify-between gap-3 pt-4 px-2">
+        {data.map((d, i) => {
+          const incHeight = (d.income / maxVal) * 100;
+          const expHeight = (d.expense / maxVal) * 100;
+          return (
+            <div
+              key={i}
+              className="flex flex-1 flex-col items-center gap-1.5 h-full justify-end group relative"
+            >
+              <div className="flex items-end gap-1 w-full justify-center h-full">
+                <div
+                  style={{ height: `${Math.max(incHeight, 4)}%` }}
+                  className="w-3 rounded-t-sm bg-[var(--chart-1)] transition-all duration-300"
+                  title={`Income: ${money(d.income)}`}
+                />
+                <div
+                  style={{ height: `${Math.max(expHeight, 4)}%` }}
+                  className="w-3 rounded-t-sm bg-[var(--chart-2)] transition-all duration-300"
+                  title={`Expense: ${money(d.expense)}`}
+                />
+              </div>
+              <span className="text-[10px] font-bold text-muted-foreground truncate w-full text-center">
+                {d.month}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-center justify-center gap-4 pt-1 text-[10px] font-bold text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-[var(--chart-1)]" /> Income
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-[var(--chart-2)]" /> Expense
+        </span>
+      </div>
     </div>
   );
 }

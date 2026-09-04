@@ -15,9 +15,9 @@ case "$1" in
     docker logs -f smartbudget
     ;;
   rebuild)
-    NITRO_PRESET=node-server node_modules/.bin/vite build && docker build -t smartbudget . && docker rm -f smartbudget 2>/dev/null; docker run -d --name smartbudget --restart unless-stopped -p 9119:9119 -v "$(pwd)/data:/data" smartbudget
+    NITRO_PRESET=node-server node_modules/.bin/vite build && docker build -t smartbudget . && docker rm -f smartbudget 2>/dev/null; docker run -d --name smartbudget --restart unless-stopped -p 9119:9119 -e DB_PATH=/data/budget.db -e DATA_DIR=/data -v "$(pwd)/data:/data" smartbudget
     ;;
   *)
-    exec docker run -d --name smartbudget --restart unless-stopped -p 9119:9119 -v "$(pwd)/data:/data" smartbudget
+    exec docker run -d --name smartbudget --restart unless-stopped -p 9119:9119 -e DB_PATH=/data/budget.db -e DATA_DIR=/data -v "$(pwd)/data:/data" smartbudget
     ;;
 esac

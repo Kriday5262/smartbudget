@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ChevronDown, Search, Check, Pencil } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ChevronDown, Search, Check, Pencil, Inbox } from "lucide-react";
 import { BankMark } from "@/components/BankMark";
 import { CardBrandMark } from "@/components/CardBrandMark";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -59,6 +59,40 @@ function SearchInput({
   );
 }
 
+function useMobileViewportStyle(open: boolean) {
+  const [style, setStyle] = useState<{ height: string; top: string }>();
+
+  useEffect(() => {
+    if (!open || typeof window === "undefined") return;
+
+    const viewport = window.visualViewport;
+    const update = () => {
+      if (window.innerWidth >= 640) {
+        setStyle(undefined);
+        return;
+      }
+
+      setStyle({
+        height: `${Math.round(viewport?.height ?? window.innerHeight)}px`,
+        top: `${Math.round(viewport?.offsetTop ?? 0)}px`,
+      });
+    };
+
+    update();
+    window.addEventListener("resize", update);
+    viewport?.addEventListener("resize", update);
+    viewport?.addEventListener("scroll", update);
+
+    return () => {
+      window.removeEventListener("resize", update);
+      viewport?.removeEventListener("resize", update);
+      viewport?.removeEventListener("scroll", update);
+    };
+  }, [open]);
+
+  return style;
+}
+
 export function AccountPicker({
   value,
   onChange,
@@ -73,6 +107,7 @@ export function AccountPicker({
   const db = useDB();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const mobileViewportStyle = useMobileViewportStyle(open);
 
   const selected = db.accounts.find((a) => a.id === value);
   const q = query.trim().toLowerCase();
@@ -114,15 +149,17 @@ export function AccountPicker({
         }}
       >
         <DialogContent
+          style={mobileViewportStyle}
           className={cn(
             "max-h-[70vh] overflow-y-auto rounded-3xl no-select sm:max-w-lg",
-            "max-sm:top-auto max-sm:bottom-0 max-sm:w-full max-sm:max-w-full max-sm:translate-y-0",
+            "max-sm:top-0 max-sm:bottom-auto max-sm:grid-rows-[auto_minmax(0,1fr)] max-sm:h-[100dvh] max-sm:max-h-none max-sm:w-full max-sm:max-w-full max-sm:translate-y-0",
             "max-sm:rounded-b-none max-sm:rounded-t-[32px] max-sm:pb-[calc(1.5rem+env(safe-area-inset-bottom))]",
-          )}>
+          )}
+        >
           <DialogHeader>
             <DialogTitle className="text-base">{label}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
             <SearchInput placeholder="Search accounts" value={query} onChange={setQuery} />
             {ACCOUNT_TYPES.map((t) => {
               const accounts = db.accounts
@@ -183,29 +220,38 @@ export function CategoryPicker({
   onChange,
   placeholder = "Optional",
   excludeId,
+  allowReadyToAssign,
 }: {
   value: string;
   onChange: (id: string) => void;
   placeholder?: string;
   excludeId?: string | string[];
+  /** show "Ready to Assign" (empty value) as a first-class choice, e.g. for income */
+  allowReadyToAssign?: boolean;
 }) {
   const excludeSet = new Set(Array.isArray(excludeId) ? excludeId : excludeId ? [excludeId] : []);
   const db = useDB();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const mobileViewportStyle = useMobileViewportStyle(open);
 
   const selected = db.categories.find((c) => c.id === value);
+  const readySelected = allowReadyToAssign && !value;
   const q = query.trim().toLowerCase();
   const groups = [...db.categoryGroups].sort((a, b) => a.sortOrder - b.sortOrder);
-  const anyResults = groups.some((g) =>
-    db.categories.some(
-      (c) =>
-        c.groupId === g.id &&
-        !excludeSet.has(c.id) &&
-        !c.hidden &&
-        (!q || c.name.toLowerCase().includes(q) || g.name.toLowerCase().includes(q)),
-    ),
-  );
+  const showReady =
+    !!allowReadyToAssign && (!q || "ready to assign".includes(q) || "unassigned".includes(q));
+  const anyResults =
+    showReady ||
+    groups.some((g) =>
+      db.categories.some(
+        (c) =>
+          c.groupId === g.id &&
+          !excludeSet.has(c.id) &&
+          !c.hidden &&
+          (!q || c.name.toLowerCase().includes(q) || g.name.toLowerCase().includes(q)),
+      ),
+    );
 
   return (
     <>
@@ -217,14 +263,17 @@ export function CategoryPicker({
         <span
           className={cn(
             "flex min-w-0 flex-1 items-center gap-1.5 text-left",
-            selected ? "text-foreground" : "text-muted-foreground",
+            selected || readySelected ? "text-foreground" : "text-muted-foreground",
           )}
         >
           {selected && <CategoryGlyph icon={categoryIconKey(selected)} className="h-4 w-4" />}
+          {!selected && readySelected && <Inbox className="h-4 w-4 shrink-0" />}
           <span className="truncate">
             {selected
               ? `${db.categoryGroups.find((g) => g.id === selected.groupId)?.name ?? ""} › ${selected.name}`
-              : placeholder}
+              : readySelected
+                ? "Ready to Assign"
+                : placeholder}
           </span>
         </span>
         <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -238,16 +287,41 @@ export function CategoryPicker({
         }}
       >
         <DialogContent
+          style={mobileViewportStyle}
           className={cn(
             "max-h-[70vh] overflow-y-auto rounded-3xl no-select sm:max-w-lg",
-            "max-sm:top-auto max-sm:bottom-0 max-sm:w-full max-sm:max-w-full max-sm:translate-y-0",
+            "max-sm:top-0 max-sm:bottom-auto max-sm:grid-rows-[auto_minmax(0,1fr)] max-sm:h-[100dvh] max-sm:max-h-none max-sm:w-full max-sm:max-w-full max-sm:translate-y-0",
             "max-sm:rounded-b-none max-sm:rounded-t-[32px] max-sm:pb-[calc(1.5rem+env(safe-area-inset-bottom))]",
-          )}>
+          )}
+        >
           <DialogHeader>
             <DialogTitle className="text-base">Category</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
             <SearchInput placeholder="Search categories" value={query} onChange={setQuery} />
+            {showReady && (
+              <div>
+                <p className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                  Assignment
+                </p>
+                <div className="space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onChange("");
+                      setOpen(false);
+                    }}
+                    className={cn(
+                      "tap flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm no-select",
+                      readySelected ? "bg-primary text-primary-foreground" : "hover:bg-muted",
+                    )}
+                  >
+                    <Inbox className="h-4 w-4 shrink-0" />
+                    <span className="flex-1 truncate">Ready to Assign</span>
+                  </button>
+                </div>
+              </div>
+            )}
             {groups.map((g) => {
               const cats = db.categories
                 .filter(
@@ -354,6 +428,7 @@ export function PersonPicker({
   const db = useDB();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const mobileViewportStyle = useMobileViewportStyle(open);
 
   const excluded = new Set(excludeKeys);
   const options: PersonOption[] = personOptions(db, filter);
@@ -396,15 +471,17 @@ export function PersonPicker({
         }}
       >
         <DialogContent
+          style={mobileViewportStyle}
           className={cn(
             "max-h-[70vh] overflow-y-auto rounded-3xl no-select sm:max-w-lg",
-            "max-sm:top-auto max-sm:bottom-0 max-sm:w-full max-sm:max-w-full max-sm:translate-y-0",
+            "max-sm:top-0 max-sm:bottom-auto max-sm:grid-rows-[auto_minmax(0,1fr)] max-sm:h-[100dvh] max-sm:max-h-none max-sm:w-full max-sm:max-w-full max-sm:translate-y-0",
             "max-sm:rounded-b-none max-sm:rounded-t-[32px] max-sm:pb-[calc(1.5rem+env(safe-area-inset-bottom))]",
-          )}>
+          )}
+        >
           <DialogHeader>
             <DialogTitle className="text-base">Person</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
             <SearchInput
               placeholder="Search payees, accounts, categories"
               value={query}
@@ -486,9 +563,13 @@ export function UpiPicker({
 
   const saved = (
     source === "payees"
-      ? db.payees.filter((p) => p.upiVpa?.trim()).map((p) => ({ name: p.name, vpa: p.upiVpa!.trim(), kind: "Payee" }))
+      ? db.payees
+          .filter((p) => p.upiVpa?.trim())
+          .map((p) => ({ name: p.name, vpa: p.upiVpa!.trim(), kind: "Payee" }))
       : source === "accounts"
-        ? db.accounts.filter((a) => a.upiVpa?.trim()).map((a) => ({ name: a.name, vpa: a.upiVpa!.trim(), kind: "Account" }))
+        ? db.accounts
+            .filter((a) => a.upiVpa?.trim())
+            .map((a) => ({ name: a.name, vpa: a.upiVpa!.trim(), kind: "Account" }))
         : [
             ...db.payees
               .filter((p) => p.upiVpa?.trim())
@@ -620,6 +701,7 @@ export function SearchSelect({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const mobileViewportStyle = useMobileViewportStyle(open);
   const q = query.trim().toLowerCase();
   const list = options.filter(
     (o) => !q || o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q),
@@ -642,15 +724,17 @@ export function SearchSelect({
 
       <Dialog open={open} onOpenChange={(o) => setOpen(o)}>
         <DialogContent
+          style={mobileViewportStyle}
           className={cn(
             "max-h-[70vh] overflow-y-auto rounded-3xl no-select sm:max-w-lg",
-            "max-sm:top-auto max-sm:bottom-0 max-sm:w-full max-sm:max-w-full max-sm:translate-y-0",
+            "max-sm:top-0 max-sm:bottom-auto max-sm:grid-rows-[auto_minmax(0,1fr)] max-sm:h-[100dvh] max-sm:max-h-none max-sm:w-full max-sm:max-w-full max-sm:translate-y-0",
             "max-sm:rounded-b-none max-sm:rounded-t-[32px] max-sm:pb-[calc(1.5rem+env(safe-area-inset-bottom))]",
-          )}>
+          )}
+        >
           <DialogHeader>
             <DialogTitle className="text-base">{title}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
             <SearchInput placeholder="Search…" value={query} onChange={setQuery} />
             <div className="space-y-1">
               {list.map((o) => (

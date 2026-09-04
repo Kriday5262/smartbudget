@@ -37,7 +37,8 @@ export function IconPicker({
           "max-h-[70vh] overflow-y-auto rounded-3xl no-select sm:max-w-lg",
           "max-sm:top-auto max-sm:bottom-0 max-sm:w-full max-sm:max-w-full max-sm:translate-y-0",
           "max-sm:rounded-b-none max-sm:rounded-t-[32px] max-sm:pb-[calc(1.5rem+env(safe-area-inset-bottom))]",
-        )}>
+        )}
+      >
         <DialogHeader>
           <DialogTitle className="text-base">Pick an icon</DialogTitle>
         </DialogHeader>

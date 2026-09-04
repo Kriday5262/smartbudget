@@ -193,6 +193,7 @@ function GroupSection({
   const db = useDB();
   const [iconTarget, setIconTarget] = useState<string | null>(null);
   const [upiTarget, setUpiTarget] = useState<string | null>(null);
+  const [addCategoryOpen, setAddCategoryOpen] = useState(false);
   const cats = db.categories
     .filter((c) => c.groupId === group.id)
     .sort((a, b) => a.sortOrder - b.sortOrder);
@@ -395,22 +396,25 @@ function GroupSection({
               </li>
             );
           })}
-
-          {editing && (
-            <li>
-              <button
-                onClick={() => {
-                  addCategory(group.id, "New category");
-                  toast.success("Category added");
-                }}
-                className="tap flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border py-2.5 text-[11px] font-bold text-muted-foreground"
-              >
-                <Plus className="h-3.5 w-3.5" /> Add category
-              </button>
-            </li>
-          )}
         </ul>
       )}
+
+      {editing && (
+        <button
+          type="button"
+          onClick={() => setAddCategoryOpen(true)}
+          className="tap mt-1.5 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border py-2.5 text-[11px] font-bold text-muted-foreground"
+        >
+          <Plus className="h-3.5 w-3.5" /> Add category
+        </button>
+      )}
+
+      <AddCategoryDialog
+        open={addCategoryOpen}
+        groupId={group.id}
+        groupName={group.name}
+        onOpenChange={setAddCategoryOpen}
+      />
 
       <IconPicker
         open={iconTarget !== null}
@@ -429,7 +433,8 @@ function GroupSection({
               "max-h-[88vh] overflow-y-auto rounded-3xl sm:max-w-lg",
               "max-sm:top-auto max-sm:bottom-0 max-sm:w-full max-sm:max-w-full max-sm:translate-y-0",
               "max-sm:rounded-b-none max-sm:rounded-t-[32px] max-sm:pb-[calc(1.5rem+env(safe-area-inset-bottom))]",
-            )}>
+            )}
+          >
             <DialogHeader>
               <DialogTitle>UPI id</DialogTitle>
             </DialogHeader>
@@ -438,6 +443,65 @@ function GroupSection({
         </Dialog>
       )}
     </section>
+  );
+}
+
+function AddCategoryDialog({
+  open,
+  groupId,
+  groupName,
+  onOpenChange,
+}: {
+  open: boolean;
+  groupId: string;
+  groupName: string;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [name, setName] = useState("");
+
+  const close = () => {
+    setName("");
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
+      <DialogContent className="rounded-3xl sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>New category</DialogTitle>
+        </DialogHeader>
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const trimmedName = name.trim();
+            if (!trimmedName) return;
+            addCategory(groupId, trimmedName);
+            toast.success(`${trimmedName} added`);
+            close();
+          }}
+        >
+          <label className="block space-y-2">
+            <span className="text-xs font-bold text-muted-foreground">Category name</span>
+            <Input
+              autoFocus
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder={`Add to ${groupName}`}
+              maxLength={80}
+            />
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={close}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={!name.trim()}>
+              Add category
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

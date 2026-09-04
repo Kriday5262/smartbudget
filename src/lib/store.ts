@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { saveDB } from "./api";
+import { getCurrentHomeId, setActiveHomeId, joinUserToHome, getActiveUser } from "./lock";
 import { monthKey, todayISO } from "./format";
 
 /** The four account families the app understands. */
@@ -13,7 +14,43 @@ export const ACCOUNT_TYPES: { id: AccountType; label: string; plural: string }[]
   { id: "rd", label: "Recurring Deposit", plural: "Recurring Deposits" },
 ];
 
-export const BANKS = ["HDFC", "ICICI", "Kotak", "Axis", "Other"] as const;
+export const BANKS = [
+  "HDFC",
+  "ICICI",
+  "SBI",
+  "Axis",
+  "Kotak",
+  "PNB",
+  "BOB",
+  "Canara",
+  "IndusInd",
+  "IDFC FIRST",
+  "Yes Bank",
+  "Union Bank",
+  "Federal Bank",
+  "Indian Bank",
+  "RBL Bank",
+  "Bandhan Bank",
+  "Paytm Bank",
+  "Airtel Bank",
+  "AU Small Finance",
+  "Equitas",
+  "DBS",
+  "Standard Chartered",
+  "HSBC",
+  "PhonePe",
+  "Google Pay",
+  "Paytm",
+  "CRED",
+  "Amazon Pay",
+  "BHIM",
+  "Mobikwik",
+  "Slice",
+  "Fi",
+  "Jupiter",
+  "OneCard",
+  "Other",
+] as const;
 export type BankName = (typeof BANKS)[number];
 
 export const CARD_BRANDS: { id: CardBrand; label: string }[] = [
@@ -78,6 +115,8 @@ export type Transaction = {
   transferId?: string;
   /** both legs of a category-to-category transfer share this id (no real account) */
   categoryTransferId?: string;
+  /** true while the transaction is still awaiting clearance; shows up in SmartPay */
+  pending?: boolean;
   source?: string;
   upiRef?: string;
 };
@@ -121,6 +160,22 @@ export type Loan = {
   rateOfInterest?: number;
 };
 
+export type HomeMember = {
+  id: string;
+  name: string;
+  email?: string;
+  role: "owner" | "editor" | "viewer";
+  joinedAt: string;
+};
+
+export type Household = {
+  id: string;
+  name: string;
+  code: string;
+  createdAt: string;
+  members: HomeMember[];
+};
+
 export type DB = {
   accounts: Account[];
   categoryGroups: CategoryGroup[];
@@ -132,6 +187,8 @@ export type DB = {
   splits: Split[];
   loans: Loan[];
   settings: Record<string, string>;
+  households?: Household[];
+  activeHomeId?: string;
 };
 
 export const uid = () =>
@@ -144,182 +201,14 @@ function daysAgo(n: number) {
 }
 
 function seed(): DB {
-  const acc = (
-    name: string,
-    type: AccountType,
-    startingBalance: number,
-    sortOrder: number,
-    extra: Partial<Account> = {},
-  ): Account => ({
-    id: uid(),
-    name,
-    type,
-    onBudget: type === "account" || type === "credit",
-    closed: false,
-    sortOrder,
-    startingBalance,
-    ...extra,
-  });
-
-  const accounts = [
-    acc("HDFC Savings", "account", 184500, 0, { bank: "HDFC" }),
-    acc("ICICI Salary", "account", 42800, 1, { bank: "ICICI" }),
-    acc("HDFC Regalia", "credit", -18400, 2, {
-      bank: "HDFC",
-      brand: "visa",
-      creditLimit: 300000,
-      billingDate: 5,
-      dueDate: 22,
-    }),
-    acc("Axis Ace", "credit", -6250, 3, {
-      bank: "Axis",
-      brand: "mastercard",
-      creditLimit: 150000,
-      billingDate: 12,
-      dueDate: 30,
-    }),
-    acc("Kotak FD 2027", "fd", 250000, 4, { bank: "Kotak" }),
-    acc("ICICI RD Monthly", "rd", 60000, 5, { bank: "ICICI" }),
-  ];
-
-  const groups: CategoryGroup[] = [
-    { id: uid(), name: "Immediate Obligations", sortOrder: 0, hidden: false },
-    { id: uid(), name: "Family Life", sortOrder: 1, hidden: false },
-    { id: uid(), name: "Future You", sortOrder: 2, hidden: false },
-  ];
-
-  const catNames: [number, string][] = [
-    [0, "Rent"],
-    [0, "Groceries"],
-    [0, "Electricity"],
-    [0, "Internet"],
-    [1, "Dining Out"],
-    [1, "Kids & School"],
-    [1, "Transport"],
-    [1, "Entertainment"],
-    [2, "Emergency Fund"],
-    [2, "Travel Fund"],
-  ];
-  const categories: Category[] = catNames.map(([g, name], i) => ({
-    id: uid(),
-    groupId: groups[g].id,
-    name,
-    sortOrder: i,
-    hidden: false,
-  }));
-
-  const payeeSeed: [string, string | undefined][] = [
-    ["Priya", "priya@okicici"],
-    ["Arjun", "arjun@ybl"],
-    ["Meera", "meera@okaxis"],
-  ];
-  const payees: Payee[] = payeeSeed.map(([name, upiVpa], i) => ({
-    id: uid(),
-    name,
-    upiVpa,
-    sortOrder: i,
-  }));
-
-  const cat = (n: string) => categories.find((c) => c.name === n)!.id;
-
-  const transactions: Transaction[] = [
-    {
-      id: uid(),
-      accountId: accounts[0].id,
-      payeeName: "Salary",
-      amount: 185000,
-      date: daysAgo(28),
-      memo: "Monthly salary",
-    },
-    {
-      id: uid(),
-      accountId: accounts[0].id,
-      payeeName: "Landlord",
-      categoryId: cat("Rent"),
-      amount: -42000,
-      date: daysAgo(26),
-    },
-    {
-      id: uid(),
-      accountId: accounts[0].id,
-      payeeName: "BigBasket",
-      amount: -6480.5,
-      date: daysAgo(12),
-      memo: "Monthly stock-up",
-      splits: [
-        { categoryId: cat("Groceries"), amount: -5200 },
-        { categoryId: cat("Kids & School"), amount: -1280.5 },
-      ],
-    },
-    {
-      id: uid(),
-      accountId: accounts[1].id,
-      payeeName: "Swiggy",
-      categoryId: cat("Dining Out"),
-      amount: -845,
-      date: daysAgo(6),
-    },
-    {
-      id: uid(),
-      accountId: accounts[2].id,
-      payeeName: "Uber",
-      categoryId: cat("Transport"),
-      amount: -320,
-      date: daysAgo(3),
-    },
-    {
-      id: uid(),
-      accountId: accounts[0].id,
-      payeeName: "School",
-      categoryId: cat("Kids & School"),
-      amount: -1500,
-      date: daysAgo(2),
-      memo: "School supplies",
-    },
-    {
-      id: uid(),
-      accountId: accounts[3].id,
-      payeeName: "BigBasket",
-      categoryId: cat("Groceries"),
-      amount: -2310,
-      date: daysAgo(1),
-    },
-  ];
-
-  const m = monthKey();
-  const budgetSeed: [string, number][] = [
-    ["Rent", 42000],
-    ["Groceries", 14000],
-    ["Electricity", 3200],
-    ["Internet", 1200],
-    ["Dining Out", 5000],
-    ["Kids & School", 8000],
-    ["Transport", 4000],
-    ["Entertainment", 2500],
-    ["Emergency Fund", 20000],
-    ["Travel Fund", 10000],
-  ];
-  const monthlyBudgets: MonthlyBudget[] = budgetSeed.map(([name, budgeted]) => ({
-    id: uid(),
-    categoryId: cat(name),
-    month: m,
-    budgeted,
-  }));
-
-  const goals: Goal[] = [
-    { id: uid(), name: "Goa Family Trip", targetAmount: 120000, saved: 46000 },
-    { id: uid(), name: "6-Month Emergency Fund", targetAmount: 600000, saved: 250000 },
-    { id: uid(), name: "New Laptop", targetAmount: 90000, saved: 90000 },
-  ];
-
   return {
-    accounts,
-    categoryGroups: groups,
-    categories,
-    payees,
-    transactions,
-    monthlyBudgets,
-    goals,
+    accounts: [],
+    categoryGroups: [],
+    categories: [],
+    payees: [],
+    transactions: [],
+    monthlyBudgets: [],
+    goals: [],
     splits: [],
     loans: [],
     settings: { payLinkBase: "https://pay.smarthomeskc.me/upi" },
@@ -327,6 +216,7 @@ function seed(): DB {
 }
 
 let db: DB | null = null;
+let _loadedHomeId: string | null = null;
 const listeners = new Set<() => void>();
 let dbInitialized = false;
 
@@ -353,20 +243,30 @@ function parseDBValue(json: string | object): DB | null {
   return null;
 }
 
-export async function initDB(): Promise<void> {
-  if (dbInitialized) return;
+export async function initDB(force = false): Promise<void> {
+  if (dbInitialized && !force) return;
+  const homeId = getCurrentHomeId();
   try {
     const { fetchDB, saveDB } = await import("./api");
-    const json = await fetchDB();
+    const json = await fetchDB({ data: { homeId } });
     const parsed = parseDBValue(json as any);
-    if (parsed) {
+    if (parsed && Array.isArray(parsed.accounts)) {
       db = parsed;
+      _loadedHomeId = homeId;
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(fastCacheKey(), JSON.stringify(db));
+        } catch {}
+      }
     } else {
-      db = seed();
-      await saveDB({ data: db });
+      if (!db || !db.accounts || db.accounts.length === 0) {
+        db = seed();
+        _loadedHomeId = homeId;
+        await saveDB({ data: { json: db, homeId } });
+      }
     }
   } catch {
-    db = seed();
+    if (!db) db = seed();
   }
   dbInitialized = true;
   listeners.forEach((l) => l());
@@ -376,14 +276,25 @@ let pendingSave = false;
 
 export async function refreshDB(): Promise<void> {
   if (pendingSave || !dbInitialized) return;
+  const homeId = getCurrentHomeId();
   try {
     const { fetchDB } = await import("./api");
-    const json = await fetchDB();
+    const json = await fetchDB({ data: { homeId } });
+    // A local mutation may have started while the fetch was in flight. Re-check
+    // the pending-save guard so a stale server snapshot doesn't clobber unsaved
+    // local changes (e.g. a freshly created category group).
+    if (pendingSave) return;
     const parsed = parseDBValue(json as any);
-    if (parsed) {
+    if (parsed && Array.isArray(parsed.accounts)) {
       const current = db ? JSON.stringify(db) : "";
       if (JSON.stringify(parsed) !== current) {
         db = parsed;
+        _loadedHomeId = homeId;
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem(fastCacheKey(), JSON.stringify(db));
+          } catch {}
+        }
         undoStack = [];
         redoStack = [];
         listeners.forEach((l) => l());
@@ -392,9 +303,15 @@ export async function refreshDB(): Promise<void> {
   } catch {}
 }
 
+const FAST_CACHE_KEY = "smartbudget_fast_cache_v1";
+
+function fastCacheKey(): string {
+  const homeId = _loadedHomeId ?? getCurrentHomeId();
+  return homeId === "home-default" ? FAST_CACHE_KEY : `smartbudget_fast_cache_${homeId}`;
+}
+
 function load(): DB {
-  if (db && typeof db === "object" && db.accounts) {
-    if (!db.transactions) db.transactions = [];
+  if (db && typeof db === "object" && Array.isArray(db.accounts)) {
     if (!db.transactions) db.transactions = [];
     if (!db.categories) db.categories = [];
     if (!db.payees) db.payees = [];
@@ -406,6 +323,21 @@ function load(): DB {
     if (!db.settings) db.settings = {};
     return db;
   }
+
+  if (typeof window !== "undefined") {
+    try {
+      const cached = localStorage.getItem(fastCacheKey());
+      if (cached) {
+        const parsed = parseDBValue(cached);
+        if (parsed && Array.isArray(parsed.accounts)) {
+          db = parsed;
+          _loadedHomeId = getCurrentHomeId();
+          return db;
+        }
+      }
+    } catch {}
+  }
+
   db = seed();
   return db;
 }
@@ -414,10 +346,15 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 function persist() {
   if (typeof window === "undefined" || !db) return;
+  const homeId = _loadedHomeId ?? getCurrentHomeId();
+  const snapshot: DB = JSON.parse(JSON.stringify(db));
+  try {
+    localStorage.setItem(fastCacheKey(), JSON.stringify(snapshot));
+  } catch {}
   pendingSave = true;
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    saveDB({ data: db })
+    saveDB({ data: { json: snapshot, homeId } })
       .then(() => {
         pendingSave = false;
       })
@@ -493,10 +430,8 @@ export function useUndo() {
 
 export function mutate(fn: (draft: DB) => void) {
   const prev = load();
-  const next = structuredClone(prev);
+  const next: DB = JSON.parse(JSON.stringify(prev));
   fn(next);
-  // ignore no-op mutations so they don't clutter the undo history
-  if (JSON.stringify(next) === JSON.stringify(prev)) return;
   pushUndo(prev);
   redoStack = [];
   db = next;
@@ -546,7 +481,8 @@ export function sortedAccounts(db: DB, opts?: { includeClosed?: boolean }): Acco
     .filter((a) => (opts?.includeClosed ? true : !a.closed))
     .sort(
       (a, b) =>
-        ACCOUNT_TYPE_ORDER[a.type] - ACCOUNT_TYPE_ORDER[b.type] || a.sortOrder - b.sortOrder,
+        (ACCOUNT_TYPE_ORDER[a.type] ?? 99) - (ACCOUNT_TYPE_ORDER[b.type] ?? 99) ||
+        a.sortOrder - b.sortOrder,
     );
 }
 
@@ -555,13 +491,16 @@ export function sortedAccounts(db: DB, opts?: { includeClosed?: boolean }): Acco
  * groups by sortOrder, then categories by sortOrder within each group.
  */
 export function sortedCategories(db: DB): Category[] {
-  return [...db.categoryGroups]
+  const grouped = [...db.categoryGroups]
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .flatMap((g) =>
       [...db.categories]
         .filter((c) => c.groupId === g.id)
         .sort((a, b) => a.sortOrder - b.sortOrder),
     );
+  const groupedIds = new Set(grouped.map((c) => c.id));
+  const orphans = db.categories.filter((c) => !groupedIds.has(c.id));
+  return [...grouped, ...orphans];
 }
 
 export function typeTotal(db: DB, type: AccountType) {
@@ -732,6 +671,14 @@ export function addTransfer(input: {
     );
   });
   return transferId;
+}
+
+/** Flag or clear a transaction as pending (awaiting clearance, surfaced in SmartPay). */
+export function setTransactionPending(id: string, pending: boolean) {
+  mutate((d) => {
+    const t = d.transactions.find((x) => x.id === id);
+    if (t) t.pending = pending || undefined;
+  });
 }
 
 export function updateTransaction(id: string, patch: Partial<Omit<Transaction, "id">>) {
@@ -936,9 +883,14 @@ export function renameCategoryGroup(id: string, name: string) {
 export function deleteCategoryGroup(id: string) {
   mutate((d) => {
     const catIds = d.categories.filter((c) => c.groupId === id).map((c) => c.id);
+    const catSet = new Set(catIds);
     d.categories = d.categories.filter((c) => c.groupId !== id);
     d.categoryGroups = d.categoryGroups.filter((g) => g.id !== id);
-    d.monthlyBudgets = d.monthlyBudgets.filter((b) => !catIds.includes(b.categoryId));
+    d.monthlyBudgets = d.monthlyBudgets.filter((b) => !catSet.has(b.categoryId));
+    d.transactions.forEach((t) => {
+      if (t.categoryId && catSet.has(t.categoryId)) t.categoryId = undefined;
+      if (t.splits) t.splits = t.splits.filter((s) => !catSet.has(s.categoryId));
+    });
   });
 }
 
@@ -1039,8 +991,15 @@ export function updateAccount(id: string, patch: Partial<Account>) {
 
 export function deleteAccount(id: string) {
   mutate((d) => {
+    const deletedTransferIds = new Set(
+      d.transactions.filter((t) => t.accountId === id && t.transferId).map((t) => t.transferId!),
+    );
     d.accounts = d.accounts.filter((a) => a.id !== id);
-    d.transactions = d.transactions.filter((t) => t.accountId !== id);
+    d.transactions = d.transactions.filter((t) => {
+      if (t.accountId === id) return false;
+      if (t.transferId && deletedTransferIds.has(t.transferId)) return false;
+      return true;
+    });
   });
 }
 
@@ -1203,7 +1162,13 @@ export function resolvePersonName(name: string, db: DB): string {
 /** SmartPay minimal settlement algorithm: calculates net balances and produces the absolute minimum number of settlement transfers / QR links */
 export function minimalSettlements(db: DB): {
   netBalances: { name: string; upi?: string; net: number }[];
-  settlements: { fromName: string; fromUpi?: string; toName: string; toUpi?: string; amount: number }[];
+  settlements: {
+    fromName: string;
+    fromUpi?: string;
+    toName: string;
+    toUpi?: string;
+    amount: number;
+  }[];
 } {
   const map = new Map<string, { name: string; upi?: string; net: number }>();
 
@@ -1237,7 +1202,13 @@ export function minimalSettlements(db: DB): {
   const people = [...map.values()];
   const balances = people.map((p, i) => ({ i, net: p.net }));
   const EPS = 0.005;
-  const rawSettlements: { fromName: string; fromUpi?: string; toName: string; toUpi?: string; amount: number }[] = [];
+  const rawSettlements: {
+    fromName: string;
+    fromUpi?: string;
+    toName: string;
+    toUpi?: string;
+    amount: number;
+  }[] = [];
 
   // 2. Exact match pass: settle pairs with identical opposite balances to eliminate 2 nodes in 1 step
   for (let i = 0; i < balances.length; i++) {
@@ -1269,7 +1240,7 @@ export function minimalSettlements(db: DB): {
     let cred = balances.reduce((m, b) => (b.net > m.net ? b : m), { i: -1, net: -Infinity });
     let debt = balances.reduce((m, b) => (b.net < m.net ? b : m), { i: -1, net: Infinity });
 
-    if (cred.net < EPS || debt.net > -EPS || cred.i === debt.i) break;
+    if (cred.i < 0 || debt.i < 0 || cred.net < EPS || debt.net > -EPS || cred.i === debt.i) break;
 
     const fromPerson = people[debt.i];
     const toPerson = people[cred.i];
@@ -1296,7 +1267,10 @@ export function minimalSettlements(db: DB): {
   }
 
   // 4. Consolidate transfers by (fromPerson -> toPerson) to ensure minimum total links/QRs
-  const mergedMap = new Map<string, { fromName: string; fromUpi?: string; toName: string; toUpi?: string; amount: number }>();
+  const mergedMap = new Map<
+    string,
+    { fromName: string; fromUpi?: string; toName: string; toUpi?: string; amount: number }
+  >();
   for (const s of rawSettlements) {
     const key = `${s.fromName.trim().toLowerCase()}->${s.toName.trim().toLowerCase()}`;
     const existing = mergedMap.get(key);
@@ -1312,4 +1286,162 @@ export function minimalSettlements(db: DB): {
     netBalances: people.filter((p) => Math.abs(p.net) > EPS),
     settlements: [...mergedMap.values()].filter((s) => s.amount > EPS),
   };
+}
+
+/* ---------- household / multi-home sharing ---------- */
+
+export function defaultHousehold(): Household {
+  return {
+    id: "home-default",
+    name: "Shantanu's Home",
+    code: "HOME-" + Math.random().toString(36).substring(2, 8).toUpperCase(),
+    createdAt: new Date().toISOString().slice(0, 10),
+    members: [
+      {
+        id: "mem-shantanu",
+        name: "Shantanu",
+        role: "owner",
+        joinedAt: new Date().toISOString().slice(0, 10),
+      },
+    ],
+  };
+}
+
+export function getHouseholds(db: DB): Household[] {
+  if (db.households && db.households.length > 0) return db.households;
+  return [defaultHousehold()];
+}
+
+export function getActiveHousehold(db: DB): Household {
+  const homes = getHouseholds(db);
+  if (db.activeHomeId) {
+    const found = homes.find((h) => h.id === db.activeHomeId);
+    if (found) return found;
+  }
+  return homes[0];
+}
+
+export async function createHousehold(name: string): Promise<string | null> {
+  const active = getActiveUser();
+  if (!active) return null;
+  const username = active.username;
+  let id = "";
+  try {
+    const { createHomeApi } = await import("./api");
+    const res = await createHomeApi({ data: { name, username } });
+    if (res.ok && res.home) {
+      id = res.home.id;
+      mutate((d) => {
+        if (!d.households) d.households = [defaultHousehold()];
+        if (!d.households.some((h) => h.id === id)) {
+          d.households.push({
+            id,
+            name: res.home!.name,
+            code: res.home!.code,
+            createdAt: new Date().toISOString().slice(0, 10),
+            members: [
+              {
+                id: "mem-" + uid(),
+                name: active?.name || "You",
+                role: "owner",
+                joinedAt: new Date().toISOString().slice(0, 10),
+              },
+            ],
+          });
+        }
+        d.activeHomeId = id;
+      });
+    }
+  } catch {}
+  if (id) {
+    setActiveHomeId(id);
+    await reloadHome(id);
+  }
+  return id || null;
+}
+
+async function reloadHome(homeId: string) {
+  try {
+    const { fetchDB } = await import("./api");
+    const json = await fetchDB({ data: { homeId } });
+    const parsed = parseDBValue(json as any);
+    if (parsed && Array.isArray(parsed.accounts)) {
+      db = parsed;
+      _loadedHomeId = homeId;
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(fastCacheKey(), JSON.stringify(db));
+        } catch {}
+      }
+      undoStack = [];
+      redoStack = [];
+      listeners.forEach((l) => l());
+    }
+  } catch {}
+}
+
+export async function switchHousehold(id: string) {
+  setActiveHomeId(id);
+  mutate((d) => {
+    d.activeHomeId = id;
+  });
+  await reloadHome(id);
+}
+
+export async function joinHousehold(code: string): Promise<boolean> {
+  const cleanCode = code.trim().toUpperCase();
+  if (!cleanCode) return false;
+  const d = getDB();
+  const existing = (d.households ?? []).find((h) => h.code === cleanCode);
+  if (existing) {
+    await switchHousehold(existing.id);
+    return true;
+  }
+  const res = await joinUserToHome(cleanCode);
+  if (!res.ok || !res.homeId) return false;
+  mutate((d) => {
+    if (!d.households) d.households = [defaultHousehold()];
+    if (!d.households.some((h) => h.id === res.homeId)) {
+      d.households.push({
+        id: res.homeId!,
+        name: res.name || "Shared Home",
+        code: cleanCode,
+        createdAt: new Date().toISOString().slice(0, 10),
+        members: [
+          {
+            id: "mem-owner",
+            name: "Family Host",
+            role: "owner",
+            joinedAt: new Date().toISOString().slice(0, 10),
+          },
+          {
+            id: "mem-me",
+            name: "You (Joined)",
+            role: "editor",
+            joinedAt: new Date().toISOString().slice(0, 10),
+          },
+        ],
+      });
+    }
+    d.activeHomeId = res.homeId!;
+  });
+  setActiveHomeId(res.homeId);
+  await reloadHome(res.homeId);
+  return true;
+}
+
+export function addHomeMember(name: string, email?: string) {
+  mutate((d) => {
+    const home = getActiveHousehold(d);
+    const existing = d.households?.find((h) => h.id === home.id);
+    if (existing) {
+      existing.members.push({
+        id: "mem-" + uid(),
+        name: name.trim(),
+        email: email?.trim(),
+        role: "editor",
+        joinedAt: new Date().toISOString().slice(0, 10),
+      });
+    }
+  });
 }

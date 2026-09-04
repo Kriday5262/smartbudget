@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Field, AccountPicker, CategoryPicker } from "@/components/pickers";
 import { useUI, uiActions } from "@/lib/ui-store";
 import {
@@ -152,7 +153,8 @@ function CatTransferForm({ id }: { id: string }) {
             "max-h-[88vh] overflow-y-auto rounded-3xl sm:max-w-lg",
             "max-sm:top-auto max-sm:bottom-0 max-sm:w-full max-sm:max-w-full max-sm:translate-y-0",
             "max-sm:rounded-b-none max-sm:rounded-t-[32px] max-sm:pb-[calc(1.5rem+env(safe-area-inset-bottom))]",
-          )}>
+          )}
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this transfer?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -181,7 +183,8 @@ function CatTransferForm({ id }: { id: string }) {
 
 function Form({ id }: { id: string }) {
   const db = useDB();
-  const t = db.transactions.find((x) => x.id === id)!;
+  const t = db.transactions.find((x) => x.id === id);
+  if (!t) return null;
   const isTransfer = !!t.transferId;
 
   const other = db.transactions.find((x) => x.transferId === t.transferId && x.id !== t.id);
@@ -207,6 +210,7 @@ function Form({ id }: { id: string }) {
         ],
   );
   const [error, setError] = useState("");
+  const [pending, setPending] = useState(!!t.pending);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const total = Number(amount) || 0;
@@ -292,6 +296,7 @@ function Form({ id }: { id: string }) {
             amount: (income ? 1 : -1) * Number(r.amount),
           }))
         : undefined,
+      pending: pending || undefined,
     });
     toast.success("Transaction updated");
     uiActions.editTxn(undefined);
@@ -361,7 +366,12 @@ function Form({ id }: { id: string }) {
 
           {!splitOn && (
             <Field label="Category">
-              <CategoryPicker value={categoryId} onChange={setCategoryId} placeholder="Optional" />
+              <CategoryPicker
+                value={categoryId}
+                onChange={setCategoryId}
+                placeholder={income ? "Ready to Assign" : "Optional"}
+                allowReadyToAssign={income}
+              />
             </Field>
           )}
 
@@ -447,6 +457,18 @@ function Form({ id }: { id: string }) {
         </Field>
       </div>
 
+      {!isTransfer && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-border px-3.5 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-bold">Pending</p>
+            <p className="text-[11px] text-muted-foreground">
+              Track it in SmartPay until it clears
+            </p>
+          </div>
+          <Switch checked={pending} onCheckedChange={setPending} aria-label="Flag as pending" />
+        </div>
+      )}
+
       <div className="flex items-center gap-2">
         <Button className="h-11 flex-1 rounded-xl font-bold" onClick={save}>
           Save changes
@@ -467,7 +489,8 @@ function Form({ id }: { id: string }) {
             "max-h-[88vh] overflow-y-auto rounded-3xl sm:max-w-lg",
             "max-sm:top-auto max-sm:bottom-0 max-sm:w-full max-sm:max-w-full max-sm:translate-y-0",
             "max-sm:rounded-b-none max-sm:rounded-t-[32px] max-sm:pb-[calc(1.5rem+env(safe-area-inset-bottom))]",
-          )}>
+          )}
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this transaction?</AlertDialogTitle>
             <AlertDialogDescription>

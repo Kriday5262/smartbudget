@@ -57,7 +57,8 @@ export function UpiActions({ upiVpa, name }: { upiVpa: string; name: string }) {
             "max-h-[88vh] overflow-y-auto rounded-3xl sm:max-w-lg",
             "max-sm:top-auto max-sm:bottom-0 max-sm:w-full max-sm:max-w-full max-sm:translate-y-0",
             "max-sm:rounded-b-none max-sm:rounded-t-[32px] max-sm:pb-[calc(1.5rem+env(safe-area-inset-bottom))]",
-          )}>
+          )}
+        >
           <DialogTitle>UPI QR</DialogTitle>
           <div className="flex flex-col items-center gap-3 pb-2 text-center">
             <p className="text-sm font-bold">{name}</p>
