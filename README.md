@@ -108,3 +108,6 @@ curl -u admin:secret "http://localhost:9119/api/v1/data?homeId=myhome"
 - [Tailwind CSS](https://tailwindcss.com)
 - [shadcn/ui](https://ui.shadcn.com)
 - [SQLite](https://www.sqlite.org)
+
+## Disclaimer
+This app is Fully Vibe Coded
