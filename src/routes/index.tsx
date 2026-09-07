@@ -82,8 +82,12 @@ function Dashboard() {
             {greeting()}, {getActiveUser()?.name ?? "family"}
           </h1>
         </div>
-        <span className="num flex h-10 w-10 shrink-0 items-center justify-center rounded-full gradient-primary text-base font-bold text-primary-foreground shadow-md select-none">
-          {getActiveUser()?.name?.[0] ?? "S"}
+        <span className="num flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full gradient-primary text-base font-bold text-primary-foreground shadow-md select-none">
+          {getActiveUser()?.avatarDataUrl ? (
+            <img src={getActiveUser()!.avatarDataUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            getActiveUser()?.name?.[0] ?? "S"
+          )}
         </span>
       </header>
 

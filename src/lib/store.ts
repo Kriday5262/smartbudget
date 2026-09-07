@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { saveDB } from "./api";
-import { getCurrentHomeId, setActiveHomeId, joinUserToHome, getActiveUser } from "./lock";
+import { getCurrentHomeId, setActiveHomeId, joinUserToHome, getActiveUser, saveUsers, getRegisteredUsers } from "./lock";
 import { monthKey, todayISO } from "./format";
 
 /** The four account families the app understands. */
@@ -220,6 +220,25 @@ let _loadedHomeId: string | null = null;
 const listeners = new Set<() => void>();
 let dbInitialized = false;
 
+/**
+ * Financial data is kept in memory only — never persisted to localStorage in
+ * plaintext. Old plaintext fast-cache keys from earlier builds are purged.
+ */
+if (typeof window !== "undefined") {
+  try {
+    for (const key of [
+      "smartbudget_fast_cache_v1",
+      "smartbudget_fast_cache_home-default",
+    ]) {
+      localStorage.removeItem(key);
+    }
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k?.startsWith("smartbudget_fast_cache_")) localStorage.removeItem(k);
+    }
+  } catch {}
+}
+
 /** Parse the value returned by fetchDB into a DB, repairing legacy double-encoded saves. */
 function parseDBValue(json: string | object): DB | null {
   let value: any = json;
@@ -253,11 +272,6 @@ export async function initDB(force = false): Promise<void> {
     if (parsed && Array.isArray(parsed.accounts)) {
       db = parsed;
       _loadedHomeId = homeId;
-      if (typeof window !== "undefined") {
-        try {
-          localStorage.setItem(fastCacheKey(), JSON.stringify(db));
-        } catch {}
-      }
     } else {
       if (!db || !db.accounts || db.accounts.length === 0) {
         db = seed();
@@ -290,24 +304,12 @@ export async function refreshDB(): Promise<void> {
       if (JSON.stringify(parsed) !== current) {
         db = parsed;
         _loadedHomeId = homeId;
-        if (typeof window !== "undefined") {
-          try {
-            localStorage.setItem(fastCacheKey(), JSON.stringify(db));
-          } catch {}
-        }
         undoStack = [];
         redoStack = [];
         listeners.forEach((l) => l());
       }
     }
   } catch {}
-}
-
-const FAST_CACHE_KEY = "smartbudget_fast_cache_v1";
-
-function fastCacheKey(): string {
-  const homeId = _loadedHomeId ?? getCurrentHomeId();
-  return homeId === "home-default" ? FAST_CACHE_KEY : `smartbudget_fast_cache_${homeId}`;
 }
 
 function load(): DB {
@@ -324,20 +326,6 @@ function load(): DB {
     return db;
   }
 
-  if (typeof window !== "undefined") {
-    try {
-      const cached = localStorage.getItem(fastCacheKey());
-      if (cached) {
-        const parsed = parseDBValue(cached);
-        if (parsed && Array.isArray(parsed.accounts)) {
-          db = parsed;
-          _loadedHomeId = getCurrentHomeId();
-          return db;
-        }
-      }
-    } catch {}
-  }
-
   db = seed();
   return db;
 }
@@ -348,9 +336,6 @@ function persist() {
   if (typeof window === "undefined" || !db) return;
   const homeId = _loadedHomeId ?? getCurrentHomeId();
   const snapshot: DB = JSON.parse(JSON.stringify(db));
-  try {
-    localStorage.setItem(fastCacheKey(), JSON.stringify(snapshot));
-  } catch {}
   pendingSave = true;
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
@@ -1351,6 +1336,16 @@ export async function createHousehold(name: string): Promise<string | null> {
         }
         d.activeHomeId = id;
       });
+      const createdUser = getActiveUser();
+      if (createdUser && !(createdUser.homes ?? []).includes(id)) {
+        saveUsers(
+          getRegisteredUsers().map((u) =>
+            u.username === createdUser.username
+              ? { ...u, homes: [...(u.homes ?? []), id], homeId: u.homeId || id }
+              : u,
+          ),
+        );
+      }
     }
   } catch {}
   if (id) {
@@ -1368,11 +1363,6 @@ async function reloadHome(homeId: string) {
     if (parsed && Array.isArray(parsed.accounts)) {
       db = parsed;
       _loadedHomeId = homeId;
-      if (typeof window !== "undefined") {
-        try {
-          localStorage.setItem(fastCacheKey(), JSON.stringify(db));
-        } catch {}
-      }
       undoStack = [];
       redoStack = [];
       listeners.forEach((l) => l());

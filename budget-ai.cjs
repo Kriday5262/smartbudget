@@ -10,6 +10,57 @@ const MODEL = process.env.AI_MODEL || "deepseek-v4-flash";
 const POLL_INTERVAL = parseInt(process.env.AI_POLL || "30000", 10);
 const MAX_AI_CALLS = 5;
 
+/* ------------------------------------------------------------------ */
+/* Keep parity with src/lib/security.ts: the server encrypts kv rows  */
+/* (db, ai_activity, ...) as "enc1:iv:authTag:ciphertext" base64url   */
+/* using AES-256-GCM keyed by sha256(SMARTBUDGET_ENC_KEY). We must    */
+/* read + write with the same scheme or we corrupt the data.          */
+/* ------------------------------------------------------------------ */
+const ENC_PREFIX = "enc1:";
+
+function dataKey() {
+  const raw = process.env.SMARTBUDGET_ENC_KEY;
+  if (raw && raw.length >= 32) {
+    return crypto.createHash("sha256").update(raw, "utf8").digest();
+  }
+  const seed = process.env.HOSTNAME || process.env.SMARTBUDGET_HOST || "smartbudget";
+  return crypto.createHash("sha256").update(seed + "::smartbudget-data-key").digest();
+}
+
+function encryptValue(plaintext) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", dataKey(), iv);
+  const enc = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return ENC_PREFIX + [iv.toString("base64url"), tag.toString("base64url"), enc.toString("base64url")].join(":");
+}
+
+function decryptValue(payload) {
+  try {
+    const [ivB, tagB, ctB] = payload.split(":");
+    const decipher = crypto.createDecipheriv("aes-256-gcm", dataKey(), Buffer.from(ivB, "base64url"));
+    decipher.setAuthTag(Buffer.from(tagB, "base64url"));
+    return Buffer.concat([decipher.update(Buffer.from(ctB, "base64url")), decipher.final()]).toString("utf8");
+  } catch {
+    return null;
+  }
+}
+
+/** Read a kv value, transparently handling encrypted (enc1:) and legacy plaintext rows. */
+function kvRead(db, key) {
+  const row = db.prepare("SELECT value FROM kv WHERE key = ?").get(key);
+  if (!row) return null;
+  const raw = row.value;
+  if (typeof raw === "string" && raw.startsWith(ENC_PREFIX)) {
+    return decryptValue(raw.slice(ENC_PREFIX.length));
+  }
+  return raw;
+}
+
+function kvWrite(db, key, value) {
+  db.prepare("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)").run(key, encryptValue(value));
+}
+
 let lastSnapshot = null;
 
 /* ---------- helpers ---------- */
@@ -29,22 +80,16 @@ function log(tag, msg) {
 
 function saveActivity(ts, type, msg) {
   var db = new DatabaseSync(DB_PATH);
-  var row = db.prepare("SELECT value FROM kv WHERE key = ?").get("ai_activity");
-  var activity = row ? JSON.parse(row.value) : [];
+  var raw = kvRead(db, "ai_activity");
+  var activity = raw ? JSON.parse(raw) : [];
   // Skip SCAN entries from activity feed (too noisy)
   if (type !== "SCAN") {
     activity.push({ ts: ts, type: type, msg: msg });
     if (activity.length > 100) activity = activity.slice(-100);
-    db.prepare("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)").run(
-      "ai_activity",
-      JSON.stringify(activity),
-    );
+    kvWrite(db, "ai_activity", JSON.stringify(activity));
   } else {
     // Just update the last scan timestamp
-    db.prepare("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)").run(
-      "ai_activity",
-      JSON.stringify(activity),
-    );
+    kvWrite(db, "ai_activity", JSON.stringify(activity));
   }
   db.close();
 }
@@ -56,9 +101,9 @@ function uid() {
 function readDB() {
   const db = new DatabaseSync(DB_PATH);
   try {
-    const row = db.prepare("SELECT value FROM kv WHERE key = ?").get("db");
+    const raw = kvRead(db, "db");
     db.close();
-    return row ? JSON.parse(row.value) : null;
+    return raw ? JSON.parse(raw) : null;
   } catch (e) {
     db.close();
     return null;
@@ -67,10 +112,7 @@ function readDB() {
 
 function writeDB(data) {
   const db = new DatabaseSync(DB_PATH);
-  db.prepare("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)").run(
-    "db",
-    JSON.stringify(data),
-  );
+  kvWrite(db, "db", JSON.stringify(data));
   db.close();
 }
 

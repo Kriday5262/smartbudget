@@ -13,13 +13,11 @@ import {
   ArrowDown,
   Landmark,
   Target,
-  QrCode,
-  AtSign,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { UpiPicker, CategoryPicker } from "@/components/pickers";
+import { CategoryPicker } from "@/components/pickers";
 import { toast } from "sonner";
 import {
   useDB,
@@ -30,7 +28,6 @@ import {
   readyToAssign,
   setBudget,
   setCategoryIcon,
-  setCategoryUpi,
   categoryTransfer,
   addCategory,
   addCategoryGroup,
@@ -192,7 +189,6 @@ function GroupSection({
 }) {
   const db = useDB();
   const [iconTarget, setIconTarget] = useState<string | null>(null);
-  const [upiTarget, setUpiTarget] = useState<string | null>(null);
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
   const cats = db.categories
     .filter((c) => c.groupId === group.id)
@@ -290,17 +286,17 @@ function GroupSection({
                 }
               >
                 {editing ? (
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     <button
                       type="button"
                       aria-label={`Choose icon for ${c.name}`}
                       onClick={() => setIconTarget(c.id)}
-                      className="tap flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-foreground"
+                      className="tap flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-foreground"
                     >
                       <CategoryGlyph icon={categoryIconKey(c)} className="h-4 w-4" />
                     </button>
                     <Input
-                      className="h-9 flex-1 rounded-lg text-sm font-semibold"
+                      className="h-9 min-w-0 flex-1 rounded-lg text-sm font-semibold"
                       defaultValue={c.name}
                       aria-label={`Rename ${c.name}`}
                       onBlur={(e) => {
@@ -309,7 +305,7 @@ function GroupSection({
                       }}
                     />
                     <Input
-                      className="num h-9 w-24 rounded-lg text-right text-sm font-bold"
+                      className="num h-9 w-20 shrink-0 rounded-lg text-right text-sm font-bold"
                       inputMode="decimal"
                       defaultValue={budgeted || ""}
                       placeholder="0"
@@ -319,17 +315,6 @@ function GroupSection({
                         if (v !== budgeted) setBudget(c.id, month, v);
                       }}
                     />
-                    <IconBtn
-                      label={`UPI id for ${c.name}`}
-                      onClick={() => setUpiTarget(c.id)}
-                      active={!!c.upiVpa}
-                    >
-                      {c.upiVpa ? (
-                        <QrCode className="h-3.5 w-3.5" />
-                      ) : (
-                        <AtSign className="h-3.5 w-3.5" />
-                      )}
-                    </IconBtn>
                     <IconBtn
                       label={`Move ${c.name} up`}
                       disabled={i === 0}
@@ -425,23 +410,6 @@ function GroupSection({
           setIconTarget(null);
         }}
       />
-
-      {upiTarget !== null && (
-        <Dialog open onOpenChange={(o) => !o && setUpiTarget(null)}>
-          <DialogContent
-            className={cn(
-              "max-h-[88vh] overflow-y-auto rounded-3xl sm:max-w-lg",
-              "max-sm:top-auto max-sm:bottom-0 max-sm:w-full max-sm:max-w-full max-sm:translate-y-0",
-              "max-sm:rounded-b-none max-sm:rounded-t-[32px] max-sm:pb-[calc(1.5rem+env(safe-area-inset-bottom))]",
-            )}
-          >
-            <DialogHeader>
-              <DialogTitle>UPI id</DialogTitle>
-            </DialogHeader>
-            <UpiEditor categoryId={upiTarget} onClose={() => setUpiTarget(null)} />
-          </DialogContent>
-        </Dialog>
-      )}
     </section>
   );
 }
@@ -502,29 +470,6 @@ function AddCategoryDialog({
         </form>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function UpiEditor({ categoryId, onClose }: { categoryId: string; onClose: () => void }) {
-  const db = useDB();
-  const cat = db.categories.find((c) => c.id === categoryId);
-  const [vpa, setVpa] = useState(cat?.upiVpa ?? "");
-
-  return (
-    <div className="space-y-3">
-      <UpiPicker value={vpa} onChange={setVpa} />
-      <Button
-        type="button"
-        className="h-10 w-full rounded-xl font-bold"
-        onClick={() => {
-          setCategoryUpi(categoryId, vpa.trim() || undefined);
-          toast.success(vpa.trim() ? "UPI id saved" : "UPI id removed");
-          onClose();
-        }}
-      >
-        Save
-      </Button>
-    </div>
   );
 }
 

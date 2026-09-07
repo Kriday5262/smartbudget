@@ -3,37 +3,9 @@ import { createServerFn } from "@tanstack/react-start";
 export const fetchDB = createServerFn({ method: "POST" })
   .validator((data: { homeId?: string } | undefined) => data ?? {})
   .handler(async (ctx) => {
-    const { loadDBValue, loadHomesRegistry } = await import("./server-db");
+    const { loadDBForClient } = await import("./server-db");
     const homeId = (ctx.data as { homeId?: string }).homeId ?? "default";
-    const raw = loadDBValue(homeId);
-    if (!raw) return raw;
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed.households) && parsed.households.length > 0) {
-        return raw;
-      }
-      const entry = loadHomesRegistry().find((h) => h.id === homeId);
-      if (entry) {
-        parsed.households = [
-          {
-            id: entry.id,
-            name: entry.name,
-            code: entry.code,
-            createdAt: new Date().toISOString().slice(0, 10),
-            members: [
-              {
-                id: "mem-" + entry.owner,
-                name: entry.owner,
-                role: "owner",
-                joinedAt: new Date().toISOString().slice(0, 10),
-              },
-            ],
-          },
-        ];
-        return JSON.stringify(parsed);
-      }
-    } catch {}
-    return raw;
+    return loadDBForClient(homeId);
   });
 
 export const saveDB = createServerFn({ method: "POST" })
@@ -64,7 +36,10 @@ export const changePasswordApi = createServerFn({ method: "POST" })
 
 export const fetchUsers = createServerFn({ method: "GET" }).handler(async () => {
   const { loadUsersServer } = await import("./server-db");
-  return loadUsersServer("default");
+  return loadUsersServer("default").map((u) => {
+    const { passwordHash: _omit, ...safe } = u;
+    return safe;
+  });
 });
 
 export const registerUserApi = createServerFn({ method: "POST" })
@@ -91,18 +66,22 @@ export const changeUserPasswordApi = createServerFn({ method: "POST" })
   });
 
 export const updateUserApi = createServerFn({ method: "POST" })
-  .validator((data: {
-    username: string;
-    passkeyEnabled?: boolean;
-    themeMode?: "light" | "dark" | "system";
-    themePreset?: string;
-    themeCustomHex?: string;
-  }) => data)
+  .validator(
+    (data: {
+      username: string;
+      name?: string;
+      avatarDataUrl?: string;
+      themeMode?: "light" | "dark" | "system";
+      themePreset?: string;
+      themeCustomHex?: string;
+    }) => data,
+  )
   .handler(async (ctx) => {
     const { updateUserServer } = await import("./server-db");
     const input = ctx.data as {
       username: string;
-      passkeyEnabled?: boolean;
+      name?: string;
+      avatarDataUrl?: string;
       themeMode?: "light" | "dark" | "system";
       themePreset?: string;
       themeCustomHex?: string;

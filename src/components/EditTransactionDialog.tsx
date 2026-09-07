@@ -398,15 +398,17 @@ function Form({ id }: { id: string }) {
                 </button>
               </div>
               {rows.map((r, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <CategoryPicker
-                    value={r.categoryId}
-                    onChange={(id) => setRow(i, { categoryId: id })}
-                    placeholder="Category"
-                    excludeId={rows.slice(0, i).map((x) => x.categoryId)}
-                  />
+                <div key={i} className="flex min-w-0 items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <CategoryPicker
+                      value={r.categoryId}
+                      onChange={(id) => setRow(i, { categoryId: id })}
+                      placeholder="Category"
+                      excludeId={rows.slice(0, i).map((x) => x.categoryId)}
+                    />
+                  </div>
                   <Input
-                    className="num w-24"
+                    className="num h-10 w-20 shrink-0 rounded-xl text-right"
                     inputMode="decimal"
                     placeholder="0"
                     value={r.amount}
@@ -448,14 +450,13 @@ function Form({ id }: { id: string }) {
 
       {error && <p className="text-xs text-destructive">{error}</p>}
 
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Date">
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        </Field>
-        <Field label="Memo">
-          <Input value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="Optional" />
-        </Field>
-      </div>
+      <Field label="Date">
+        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      </Field>
+
+      <Field label="Memo">
+        <Input value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="Optional" />
+      </Field>
 
       {!isTransfer && (
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-border px-3.5 py-3">

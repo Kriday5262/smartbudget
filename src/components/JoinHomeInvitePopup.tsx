@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
-import { Home, ScanFace, Check, X, ShieldCheck, Lock } from "lucide-react";
+import { Home, Check, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { joinHousehold, getActiveHousehold, useDB } from "@/lib/store";
-import { unlock, getActiveUser, isBiometricEnabled, unlockWithBiometrics } from "@/lib/lock";
+import { unlock, getActiveUser } from "@/lib/lock";
 import { cn } from "@/lib/utils";
 
 export function JoinHomeInvitePopup() {
@@ -14,7 +14,6 @@ export function JoinHomeInvitePopup() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const biometric = isBiometricEnabled();
   const db = useDB();
 
   useEffect(() => {
@@ -44,18 +43,6 @@ export function JoinHomeInvitePopup() {
 
   function handleAcceptClick() {
     setStep("auth");
-  }
-
-  async function handleBiometricAuth() {
-    setError("");
-    setBusy(true);
-    const res = await unlockWithBiometrics();
-    setBusy(false);
-    if (res.ok) {
-      completeJoin();
-    } else {
-      setError(res.error ?? "Biometric verification failed. Use password below.");
-    }
   }
 
   async function handlePasswordAuth(e: React.FormEvent) {
@@ -140,25 +127,13 @@ export function JoinHomeInvitePopup() {
         {step === "auth" && (
           <div className="space-y-4 pt-2">
             <p className="text-center text-xs text-muted-foreground">
-              Please verify your identity using Face ID or Password to complete joining.
+              Please enter your password to complete joining.
             </p>
-
-            {biometric && (
-              <button
-                type="button"
-                onClick={handleBiometricAuth}
-                disabled={busy}
-                className="tap flex w-full items-center justify-center gap-2.5 rounded-2xl border border-primary/30 bg-primary/10 py-3.5 text-sm font-bold text-primary transition-colors hover:bg-primary/20"
-              >
-                <ScanFace className="h-5 w-5" />
-                {busy ? "Scanning Face ID…" : "Confirm with Face ID / Touch ID"}
-              </button>
-            )}
 
             <form onSubmit={handlePasswordAuth} className="space-y-3 pt-1">
               <Input
                 type="password"
-                autoFocus={!biometric}
+                autoFocus
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => {

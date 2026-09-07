@@ -12,7 +12,6 @@ import {
   Plus,
   Trash2,
   Lock as LockIcon,
-  Fingerprint,
   Share2,
   Copy,
   Users,
@@ -28,6 +27,7 @@ import {
   KeyRound,
   ShieldCheck,
   Sparkles,
+  ShieldAlert,
   Info,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -67,9 +67,6 @@ import {
   changePassword,
   lock,
   getActiveUser,
-  isBiometricEnabled,
-  enableBiometrics,
-  disableBiometrics,
   isRemembered,
   setRememberCookie,
   clearRememberCookie,
@@ -91,12 +88,7 @@ export const Route = createFileRoute("/settings")({
 type IOSScreen = "main" | "appearance" | "security" | "homes" | "payees" | "data" | "shortcuts";
 
 const SHORTCUTS = [
-  ["⌥ + ⇧ + K", "Toggle keyboard spreadsheet mode"],
-  ["⌥ + ← / →", "Previous / next day in keyboard mode"],
-  ["Arrow keys", "Move through keyboard-mode cells"],
-  ["Enter", "Edit selected keyboard-mode row"],
-  ["N", "Add transaction on selected day"],
-  ["⇧ + L or ⌘ / Ctrl + L", "Add transaction"],
+  ["Shift + L", "Add transaction"],
   ["⌘ / Ctrl + Z", "Undo last change"],
   ["⌘ / Ctrl + ⇧ + Z", "Redo change"],
   ["⌘ / Ctrl + ⇧ + A", "Add account"],
@@ -218,7 +210,6 @@ export function SettingsPage() {
   const [confirmPass, setConfirmPass] = useState("");
   const [busyPass, setBusyPass] = useState(false);
 
-  const [biometricsEnabled, setBiometricsEnabled] = useState(() => isBiometricEnabled());
   const [cookieRemembered, setCookieRemembered] = useState(() => isRemembered());
 
   const [payee, setPayee] = useState({ name: "", vpa: "" });
@@ -244,22 +235,6 @@ export function SettingsPage() {
     setNextPass("");
     setConfirmPass("");
     toast.success("Password updated successfully!");
-  }
-
-  async function handleBiometricToggle(val: boolean) {
-    if (!val) {
-      disableBiometrics();
-      setBiometricsEnabled(false);
-      toast.success("Biometric unlock disabled");
-    } else {
-      const res = await enableBiometrics();
-      if (res.ok) {
-        setBiometricsEnabled(true);
-        toast.success("Face ID / Touch ID enabled!");
-      } else {
-        toast.error(res.error ?? "Could not enable biometrics");
-      }
-    }
   }
 
   function handleCookieToggle(val: boolean) {
@@ -345,8 +320,12 @@ export function SettingsPage() {
           {/* iOS Profile Header Card */}
           <IOSGroup>
             <div className="flex items-center gap-4 p-4">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full gradient-primary text-2xl font-black text-primary-foreground shadow-md select-none">
-                {activeUser?.name?.[0] ?? "S"}
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl gradient-primary text-xl font-bold text-primary-foreground shadow-md">
+                {activeUser?.avatarDataUrl ? (
+                  <img src={activeUser.avatarDataUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  activeUser?.name?.[0] ?? "S"
+                )}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-base font-extrabold text-foreground">
@@ -359,6 +338,17 @@ export function SettingsPage() {
               <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-primary shrink-0">
                 Primary
               </span>
+            </div>
+            <div className="border-t border-border/40">
+              <Link to="/admin">
+                <IOSRow
+                  icon={ShieldAlert}
+                  iconBg="gradient-primary text-primary-foreground"
+                  title="Master Admin Console"
+                  subtitle="Full access to all households & SQLite DBs"
+                  isLast
+                />
+              </Link>
             </div>
           </IOSGroup>
 
@@ -375,7 +365,7 @@ export function SettingsPage() {
               icon={ShieldCheck}
               iconBg="bg-emerald-500"
               title="Security & Lock"
-              subtitle={biometricsEnabled ? "Face ID Enabled" : "Passkey / Password"}
+              subtitle="Password & session controls"
               onClick={() => setScreen("security")}
               isLast
             />
@@ -565,14 +555,7 @@ export function SettingsPage() {
       {/* Sub-Screen: Security & Lock */}
       {screen === "security" && (
         <div className="space-y-6 animate-native-slide">
-          <IOSGroup title="Biometrics & Device Unlock">
-            <IOSRow
-              icon={Fingerprint}
-              iconBg="bg-emerald-500"
-              title="Face ID / Touch ID"
-              subtitle="Unlock SmartBudget with device biometrics"
-              trailing={<IOSToggle checked={biometricsEnabled} onChange={handleBiometricToggle} />}
-            />
+          <IOSGroup title="Session & Lock">
             <IOSRow
               icon={Smartphone}
               iconBg="bg-blue-500"

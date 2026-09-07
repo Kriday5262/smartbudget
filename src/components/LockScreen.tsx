@@ -1,29 +1,40 @@
 import { useState } from "react";
-import { Lock, ScanFace, UserPlus, LogIn, Key } from "lucide-react";
+import { Lock, UserPlus, LogIn } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { unlock, isBiometricAvailable, unlockWithBiometrics, registerUser } from "@/lib/lock";
+import { unlock, changePassword, registerUser } from "@/lib/lock";
 
-type AuthMode = "passkey" | "login" | "register";
+type AuthMode = "login" | "register" | "reset";
 
 export function LockScreen() {
-  const [mode, setMode] = useState<AuthMode>("passkey");
+  const [mode, setMode] = useState<AuthMode>("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const passkeySupported = isBiometricAvailable();
+  const [resetUser, setResetUser] = useState<{ username: string; current: string } | null>(null);
 
   const [remember, setRemember] = useState(true);
 
-  async function handlePasskeyUnlock() {
-    setError("");
-    setBusy(true);
-    const res = await unlockWithBiometrics();
-    setBusy(false);
+  async function completeUnlock(
+    user: { username: string; current: string },
+    rememberMe: boolean,
+    newPassword?: string,
+  ) {
+    if (newPassword) {
+      const changed = await changePassword(user.current, newPassword);
+      if (!changed) {
+        setError("Could not update the password. Try again.");
+        setBusy(false);
+        return;
+      }
+    }
+    const res = await unlock(newPassword ?? user.current, user.username, rememberMe);
     if (!res.ok) {
-      setError(res.error ?? "Passkey verification failed.");
+      setError("Could not complete sign-in. Try again.");
+      setBusy(false);
     }
   }
 
@@ -31,11 +42,18 @@ export function LockScreen() {
     e.preventDefault();
     if (!username.trim()) return setError("Please enter username");
     setBusy(true);
-    const ok = await unlock(password, username.trim(), remember);
+    const res = await unlock(password, username.trim(), remember);
     setBusy(false);
-    if (!ok) {
+    if (!res.ok) {
       setError("Incorrect username or password");
       setPassword("");
+      return;
+    }
+    if (res.needsReset) {
+      setResetUser({ username: username.trim(), current: password });
+      setPassword("");
+      setConfirm("");
+      setMode("reset");
     }
   }
 
@@ -44,12 +62,25 @@ export function LockScreen() {
     setError("");
     if (!name.trim()) return setError("Please enter your name");
     if (!username.trim()) return setError("Please enter a username");
+    if (password.length < 8) return setError("Password must be at least 8 characters");
+    if (password !== confirm) return setError("Passwords do not match");
     setBusy(true);
     const res = await registerUser(name.trim(), username.trim(), password, remember);
     setBusy(false);
     if (!res.ok) {
       setError(res.error ?? "Registration failed");
     }
+  }
+
+  async function handleReset(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    if (!resetUser) return;
+    if (password.length < 8) return setError("Password must be at least 8 characters");
+    if (password !== confirm) return setError("Passwords do not match");
+    setBusy(true);
+    await completeUnlock(resetUser, remember, password);
+    setBusy(false);
   }
 
   return (
@@ -66,19 +97,8 @@ export function LockScreen() {
         </div>
 
         {/* Auth Mode Tabs */}
-        <div className="grid grid-cols-3 gap-1 rounded-2xl bg-muted p-1 text-xs font-bold">
-          <button
-            type="button"
-            onClick={() => {
-              setMode("passkey");
-              setError("");
-            }}
-            className={`tap flex items-center justify-center gap-1 rounded-xl py-2 transition-all ${
-              mode === "passkey" ? "bg-card text-foreground shadow" : "text-muted-foreground"
-            }`}
-          >
-            <Key className="h-3.5 w-3.5" /> Passkey
-          </button>
+        {mode !== "reset" && (
+          <div className="grid grid-cols-2 gap-1 rounded-2xl bg-muted p-1 text-xs font-bold">
           <button
             type="button"
             onClick={() => {
@@ -103,24 +123,6 @@ export function LockScreen() {
           >
             <UserPlus className="h-3.5 w-3.5" /> Create
           </button>
-        </div>
-
-        {mode === "passkey" && (
-          <div className="space-y-4 pt-2">
-            <button
-              type="button"
-              onClick={handlePasskeyUnlock}
-              disabled={busy}
-              className="tap flex w-full items-center justify-center gap-2.5 rounded-2xl border border-primary/30 bg-primary/10 py-4 text-sm font-bold text-primary shadow-sm hover:bg-primary/20"
-            >
-              <ScanFace className="h-6 w-6" />
-              {busy ? "Scanning Passkey / Face ID…" : "Scan Passkey / Face ID"}
-            </button>
-            <p className="text-[11px] text-muted-foreground">
-              {passkeySupported
-                ? "Uses device Face ID, Touch ID, or Passkey"
-                : "Passkey is supported on modern iOS, Android, macOS & Windows."}
-            </p>
           </div>
         )}
 
@@ -205,6 +207,18 @@ export function LockScreen() {
                 className="h-11 rounded-2xl"
               />
             </div>
+            <div>
+              <Input
+                type="password"
+                placeholder="Confirm Password"
+                value={confirm}
+                onChange={(e) => {
+                  setConfirm(e.target.value);
+                  setError("");
+                }}
+                className="h-11 rounded-2xl"
+              />
+            </div>
             <label className="flex items-center gap-2 px-1 text-xs text-muted-foreground cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -217,6 +231,54 @@ export function LockScreen() {
             <Button type="submit" disabled={busy} className="h-11 w-full rounded-2xl font-bold">
               {busy ? "Creating Account…" : "Create Account"}
             </Button>
+          </form>
+        )}
+
+        {mode === "reset" && (
+          <form onSubmit={handleReset} className="space-y-3 pt-1 text-left">
+            <p className="text-xs text-muted-foreground">
+              <strong className="text-foreground">{resetUser?.username}</strong> still uses the old
+              shared password. Set a new personal password to continue.
+            </p>
+            <div>
+              <Input
+                type="password"
+                autoFocus
+                placeholder="New Password (min 8 chars)"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setError("");
+                }}
+                className="h-11 rounded-2xl"
+              />
+            </div>
+            <div>
+              <Input
+                type="password"
+                placeholder="Confirm New Password"
+                value={confirm}
+                onChange={(e) => {
+                  setConfirm(e.target.value);
+                  setError("");
+                }}
+                className="h-11 rounded-2xl"
+              />
+            </div>
+            <Button type="submit" disabled={busy} className="h-11 w-full rounded-2xl font-bold">
+              {busy ? "Updating password…" : "Set New Password & Continue"}
+            </Button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode("login");
+                setResetUser(null);
+                setError("");
+              }}
+              className="w-full text-center text-xs text-muted-foreground hover:text-foreground"
+            >
+              Cancel
+            </button>
           </form>
         )}
 

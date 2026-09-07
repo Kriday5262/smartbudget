@@ -2,21 +2,19 @@ import { useSyncExternalStore } from "react";
 
 const SESSION_KEY = "smartbudget.lock.session_open";
 const PERSIST_KEY = "smartbudget.lock.open";
-const BIOMETRIC_KEY = "smartbudget.lock.biometric_enabled";
-const BIOMETRIC_CRED_ID = "smartbudget.lock.biometric_cred_id";
 const USERS_KEY = "smartbudget.users.v1";
 const ACTIVE_USER_KEY = "smartbudget.users.active";
 const ACTIVE_HOME_KEY = "smartbudget.homes.active";
 const REMEMBER_COOKIE = "smartbudget_remember";
 const REMEMBER_LOCAL = "smartbudget.lock.remember";
 
-export const DEFAULT_PASSWORD = "SmartHome@2012";
+export const MIN_PASSWORD_LENGTH = 8;
 
 export type UserAccount = {
   id: string;
   name: string;
+  avatarDataUrl?: string;
   username: string;
-  passkeyEnabled?: boolean;
   themeMode?: "light" | "dark" | "system";
   themePreset?: string;
   themeCustomHex?: string;
@@ -173,10 +171,10 @@ export async function unlock(
   password: string,
   username = "shantanu",
   remember = false,
-): Promise<boolean> {
+): Promise<{ ok: boolean; needsReset?: boolean }> {
   const { verifyUserApi } = await import("./api");
   const res = await verifyUserApi({ data: { username, password } });
-  if (!res.ok || !res.user) return false;
+  if (!res.ok || !res.user) return { ok: false };
 
   const serverUser = res.user;
   const users = getRegisteredUsers();
@@ -189,6 +187,9 @@ export async function unlock(
   localStorage.setItem(ACTIVE_USER_KEY, serverUser.username);
   emitUserChanged();
 
+  const needsReset = !!res.needsPasswordReset;
+  if (needsReset) return { ok: true, needsReset };
+
   const active = getActiveUser();
   setActiveHomeId(active?.homeId ?? "home-default");
 
@@ -200,7 +201,7 @@ export async function unlock(
     const { initDB } = await import("./store");
     await initDB(true);
   } catch {}
-  return true;
+  return { ok: true };
 }
 
 export async function registerUser(
@@ -209,6 +210,9 @@ export async function registerUser(
   password?: string,
   remember = true,
 ): Promise<{ ok: boolean; error?: string }> {
+  if (!password || password.length < MIN_PASSWORD_LENGTH) {
+    return { ok: false, error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` };
+  }
   const { registerUserApi } = await import("./api");
   const res = await registerUserApi({ data: { name, username, password } });
   if (!res.ok) return { ok: false, error: res.error ?? "Registration failed" };
@@ -266,118 +270,6 @@ export async function changePassword(current: string, next: string) {
   }
 
   return false;
-}
-
-export function isBiometricAvailable(): boolean {
-  return typeof window !== "undefined" && !!window.PublicKeyCredential;
-}
-
-export function isBiometricEnabled(): boolean {
-  return typeof window !== "undefined" && localStorage.getItem(BIOMETRIC_KEY) === "1";
-}
-
-export async function enableBiometrics(): Promise<{ ok: boolean; error?: string }> {
-  if (typeof window === "undefined" || !window.PublicKeyCredential) {
-    return { ok: false, error: "Biometrics / Passkey not supported on this browser." };
-  }
-  try {
-    const challenge = new Uint8Array(32);
-    crypto.getRandomValues(challenge);
-    const userId = new Uint8Array(16);
-    crypto.getRandomValues(userId);
-
-    const activeUser = getActiveUser();
-
-    const credential = (await navigator.credentials.create({
-      publicKey: {
-        challenge,
-        rp: { name: "SmartBudget" },
-        user: {
-          id: userId,
-          name: activeUser?.username ?? "user@smartbudget",
-          displayName: activeUser?.name ?? "SmartBudget User",
-        },
-        pubKeyCredParams: [
-          { alg: -7, type: "public-key" },
-          { alg: -257, type: "public-key" },
-        ],
-        timeout: 60000,
-        authenticatorSelection: {
-          authenticatorAttachment: "platform",
-          userVerification: "required",
-        },
-      },
-    })) as PublicKeyCredential | null;
-
-    if (credential) {
-      localStorage.setItem(BIOMETRIC_KEY, "1");
-      localStorage.setItem(BIOMETRIC_CRED_ID, credential.id);
-      if (activeUser) {
-        try {
-          const { updateUserApi } = await import("./api");
-          const res = await updateUserApi({
-            data: { username: activeUser.username, passkeyEnabled: true },
-          });
-          if (res.ok && res.user) {
-            const users = getRegisteredUsers();
-            saveUsers(users.map((u) => (u.username === res.user!.username ? res.user! : u)));
-          }
-        } catch {}
-      }
-      return { ok: true };
-    }
-    return { ok: false, error: "No passkey credential created." };
-  } catch (err: any) {
-    const msg = err?.message || "Passkey setup failed or was cancelled.";
-    return { ok: false, error: msg };
-  }
-}
-
-export async function disableBiometrics() {
-  localStorage.removeItem(BIOMETRIC_KEY);
-  localStorage.removeItem(BIOMETRIC_CRED_ID);
-  const activeUser = getActiveUser();
-  if (!activeUser) return;
-  try {
-    const { updateUserApi } = await import("./api");
-    const res = await updateUserApi({
-      data: { username: activeUser.username, passkeyEnabled: false },
-    });
-    if (res.ok && res.user) {
-      const users = getRegisteredUsers();
-      saveUsers(users.map((u) => (u.username === res.user!.username ? res.user! : u)));
-    }
-  } catch {}
-}
-
-export async function unlockWithBiometrics(): Promise<{ ok: boolean; error?: string }> {
-  if (typeof window === "undefined" || !window.PublicKeyCredential) {
-    return { ok: false, error: "Biometrics / Passkeys not supported on this device." };
-  }
-
-  try {
-    const challenge = new Uint8Array(32);
-    crypto.getRandomValues(challenge);
-
-    const credential = await navigator.credentials.get({
-      publicKey: {
-        challenge,
-        timeout: 60000,
-        userVerification: "required",
-      },
-    });
-
-    if (credential) {
-      unlocked = true;
-      sessionStorage.setItem(SESSION_KEY, "1");
-      setRememberCookie(true, true);
-      emit();
-      return { ok: true };
-    }
-    return { ok: false, error: "Passkey authentication failed." };
-  } catch (err: any) {
-    return { ok: false, error: err?.message || "Passkey verification failed." };
-  }
 }
 
 export function useUnlocked() {

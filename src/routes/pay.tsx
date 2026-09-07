@@ -62,7 +62,7 @@ export const Route = createFileRoute("/pay")({
   component: PayPage,
 });
 
-function upiLink(vpa: string, name: string, amount: number, note?: string) {
+function upiLink(vpa: string, name: string, amount: number, note?: string, db?: DB) {
   const p = new URLSearchParams({
     pa: vpa,
     pn: name,
@@ -70,7 +70,16 @@ function upiLink(vpa: string, name: string, amount: number, note?: string) {
     cu: "INR",
   });
   if (note) p.set("tn", note);
-  return `upi://pay?${p.toString()}`;
+  const query = p.toString();
+  // Prefer an https wrapper (tappable in WhatsApp/chat apps; the /upi route
+  // redirects to the native upi:// scheme). Fall back to raw upi:// if the
+  // pay-link base URL isn't configured.
+  const base = db?.settings?.payLinkBase?.trim();
+  if (base) {
+    const trimmed = base.replace(/\/+$/, "");
+    return `${trimmed}/upi?${query}`;
+  }
+  return `upi://pay?${query}`;
 }
 
 type Person = { name: string; upi?: string };
@@ -201,12 +210,36 @@ function PayPage() {
           s.toName,
           s.amount,
           `SmartPay: ${s.fromName} to ${s.toName}`,
+          db,
         );
         return `${s.fromName} → ${s.toName} (${money(s.amount)}):\n${link}`;
       })
       .join("\n\n");
     navigator.clipboard?.writeText(links);
     toast.success(`${withUpi.length} UPI link${withUpi.length > 1 ? "s" : ""} copied`);
+  }
+
+  function copyWeeklySummary() {
+    if (!db.splits.length) return toast.error("No splits to summarize yet");
+    const lines: string[] = [`*Weekly Hisab Kitab on ${prettyDate(todayISO())}*`];
+
+    // At a Glance — minimal transfers (who pays whom)
+    if (validSettlements.length) {
+      lines.push("", "*At a Glance*");
+      for (const s of validSettlements) {
+        lines.push(`  • ${s.fromName} needs to pay ${s.toName} - ${money(s.amount)}`);
+      }
+    }
+
+    // All transactions grouped by payer
+    lines.push("", "*All transactions*");
+    for (const sp of db.splits) {
+      lines.push(`*${sp.payerName}* paid for:`);
+      lines.push(`  • ${sp.note || "Split"} (${prettyDate(sp.date)}) — ${money(sp.total)}`);
+    }
+
+    navigator.clipboard?.writeText(lines.join("\n").trim());
+    toast.success("Weekly summary copied — paste it in WhatsApp");
   }
 
   const dismissed = new Set(
@@ -234,6 +267,12 @@ function PayPage() {
           <p className="text-sm text-muted-foreground">{money(outstanding)} still to be settled</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={copyWeeklySummary}
+            className="tap flex items-center gap-1.5 rounded-full border border-border px-3.5 py-2 text-xs font-bold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <Users className="h-4 w-4" /> Weekly summary
+          </button>
           <button
             onClick={copyAllLinks}
             className="tap flex items-center gap-1.5 rounded-full border border-border px-3.5 py-2 text-xs font-bold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -335,7 +374,7 @@ function PayPage() {
               <div className="space-y-2">
                 {validSettlements.map((s, i) => {
                   const link = s.toUpi
-                    ? upiLink(s.toUpi, s.toName, s.amount, `SmartPay: ${s.fromName} to ${s.toName}`)
+                    ? upiLink(s.toUpi, s.toName, s.amount, `SmartPay: ${s.fromName} to ${s.toName}`, db)
                     : "";
                   return (
                     <div

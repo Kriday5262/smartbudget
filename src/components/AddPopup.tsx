@@ -307,17 +307,19 @@ function TransactionForm({
           ) : (
             <div className="space-y-2">
               {rows.map((r, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <CategoryPicker
-                    value={r.categoryId}
-                    onChange={(id) =>
-                      setRows(rows.map((x, k) => (k === i ? { ...x, categoryId: id } : x)))
-                    }
-                    placeholder="Category"
-                    excludeId={rows.slice(0, i).map((x) => x.categoryId)}
-                  />
+                <div key={i} className="flex min-w-0 items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <CategoryPicker
+                      value={r.categoryId}
+                      onChange={(id) =>
+                        setRows(rows.map((x, k) => (k === i ? { ...x, categoryId: id } : x)))
+                      }
+                      placeholder="Category"
+                      excludeId={rows.slice(0, i).map((x) => x.categoryId)}
+                    />
+                  </div>
                   <Input
-                    className="num w-24"
+                    className="num h-10 w-20 shrink-0 rounded-xl text-right"
                     inputMode="decimal"
                     placeholder="0"
                     value={r.amount}
