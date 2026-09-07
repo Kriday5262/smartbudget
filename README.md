@@ -1,3 +1,4 @@
+<img width="2048" height="768" alt="ChatGPT Image Sep 6, 2026, 07_24_36 PM" src="https://github.com/user-attachments/assets/e161cf81-3a3a-476f-a95d-e70afb6fb7bc" />
 # SmartBudget
 
 A self-hosted personal & household budget manager with expense tracking, split bills (SmartPay), reports, and an AI-powered assistant. Built with TanStack Start, React, and SQLite.
