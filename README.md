@@ -110,4 +110,4 @@ curl -u admin:secret "http://localhost:9119/api/v1/data?homeId=myhome"
 - [SQLite](https://www.sqlite.org)
 
 ## Disclaimer
-This app is Fully Vibe Coded
+This app is fully vibe coded
